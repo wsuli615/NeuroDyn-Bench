@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.Python
+build/
+dist/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# C++ / native builds
+*.o
+*.a
+*.out
+CMakeFiles/
+CMakeCache.txt
+
+# Data, private test splits & experiment artifacts
+private/
+data/raw/
+outputs/
+runs/
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.pkl
+*.parquet
+
+# Logs & local env
+*.log
+.env
+.env.local
+.DS_Store
+.idea/
+.vscode/
+
+# Third-party upstream clones
+third_party/
