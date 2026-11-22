@@ -1,43 +1,44 @@
-# 讨论脉络、关键架构决策（ADR）与开放问题
+# Design Evolution, Architecture Decision Records (ADRs), and Open Questions
 
-这份文档完整记录项目从最初想法到当前 **NeuroDyn-Bench** 定位的演进过程，把已达成的共识固化为可追溯的决策记录（ADR），并把尚未落定的问题单列出来跟踪。
-
----
-
-## 1. 思路演进时间线
-
-1. **起点（原始立项构想）**：围绕神经动力学建模调参高度依赖专家经验的痛点，提出构建自动调参 Agent——整理参数含义与约束、调用已有优化器与仿真器、排查失败，并在小模型上比较仿真次数、人工介入、计算成本与新条件预测。
-2. **第一轮深化（先建 Benchmark，再做 Agent）**：系统调研 2024–2026 年全部相邻基准（Neuroptimus、sbibm、PEtab、TuneBench、HydroAgent、SimulCost、BBOWP-Bench、NeuronBench、ModelSMC、unsatz、CtDB），确认不存在同时覆盖“任务设置 + 迭代诊断 + 证据不足敢停 + 神经群体/网络尺度 + 统一成本与人工介入”的现成基准，确立“先立考场、再做 Agent”的顺序，并从研究员决策倒推出四模块考纲与出题准入规则。
-3. **第二轮深化（跨学科对齐）**：为团队内计算机背景成员系统沉淀了神经动力学核心概念、三尺度建模与病态反问题的精确映射，打通 CS 与神经科学语言。
-4. **第三轮深化（整合团队立项稿与 21 篇文献脉络）**：汇入团队正式方案文档（`相关工作研究脉络.docx`、`总结.docx` 与飞书立项稿），将项目边界钉死在**固定模型结构下的校准与流程诊断**（与 BMD / SNOPS 划清界限），吸收 SNOPS、FastDMF、AgentHPOBench、Hartoyo 2019、Cai 2026 的理论地基，确立三类任务、四组对照与双候选环境（FastDMF + 小型 E-I 网络）；同时提出 5 处精细化修订——将 Type 3 拆清为 **3a（不可辨识/退化）** 与 **3b（结构不可达）**、专门设计防“专家规则打平 Agent”的多因一果歧义题、用配对指标防“不肯停/乱停”刷分。
-5. **第四轮战略升级（Benchmark-First 领域大考 + 命名定案）**：决定把格局拉高，借鉴 Humanity's Last Exam 的反向过筛、诚实校准核心地位、滚动隐藏集，但做成可执行、成本硬约束的科研实战考场；仓库正式定名为 **NeuroDyn-Bench**，采用“Phase 0 先打磨 10–15 道标杆样板硬题 → Gate 3 实证决策 → v1.0 扩建为 30–50 题社区大考”的稳健两步走策略。
+This log records how **NeuroDyn-Bench** converged from an initial tuning-agent idea to a benchmark-first diagnostic calibration platform, locking key architectural decisions (ADRs) and tracking remaining open questions (OQs).
 
 ---
 
-## 2. 关键架构决策记录（ADR）
+## 1. Design Evolution Timeline
 
-| 编号 | 决策内容 | 核心理由 | 影响范围 |
+1. **Origin (2026-11-10)**: Motivated by manual expert debugging in neural dynamics parameter calibration and the difficulty of separating setup errors from model mismatch.
+2. **Benchmark-First Pivot**: Surveyed 12 neighboring 2024–2026 benchmarks (`Neuroptimus`, `sbibm`, `PEtab`, `TuneBench`, `HydroAgent`, `SimulCost`, `BBOWP-Bench`, `AgentHPOBench`, `NeuronBench`, `ModelSMC`, `unsatz`, `CtDB`) and confirmed no existing suite tests setup + multi-round diagnosis-to-action + principled abstention (`3a`/`3b`) + spiking/whole-brain scales under unified costs.
+3. **Cross-Disciplinary Alignment**: Authored [`primer_for_cs.md`](primer_for_cs.md) mapping single-neuron, SNN (CBN/SBN + SNOPS 6 statistics), whole-brain (`FastDMF`), and inverse-problem pathology into CS/optimization terminology.
+4. **Formal Proposal Integration (2026-11-21)**: Locked hard scope boundaries against `BMD`/`ModelSMC` and `SNOPS`; split Type 3 cleanly into `3a` (non-identifiable/degenerate) vs. `3b` (fixed-structure unreachable); added anti-rule-tie ambiguity tasks and paired anti-gaming metrics.
+5. **Dual-Track Benchmark Upgrade & Gate 0 Completion (2026-11-22)**: Upgraded to an HLE-inspired executable exam (`NeuroDyn-Bench`), completed Gate 0 empirical profiling of `Small E-I` and canonical C++ `FastDMF` on `dgx2felis` (resolving OQ-04), and adopted a **Hybrid Dual-Track** harness (Track A optional toolbox with lightweight Bayesian inference + Track B open Python sandbox) so evaluated AI systems autonomously choose their own methods.
+
+---
+
+## 2. Architecture Decision Records (ADRs)
+
+| ID | Decision | Rationale | Scope |
 | --- | --- | --- | --- |
-| **ADR-001** | 定位为 Benchmark-First，项目名为 NeuroDyn-Bench | 底座模型迭代快，纯方法易被吞并；高天花板可执行基准兼具长期影响力、稳妥发表路径与客观迭代抓手 | 仓库定位、论文叙事、开发顺序 |
-| **ADR-002** | 固定模型结构，聚焦参数校准与流程诊断，不搜方程 | 与 BMD / ModelSMC / unsatz 彻底划界；与 SNOPS 的区别在于诊断指向“优化流程的下一步动作”而非仅评估模型结构 | 任务范围、动作空间、Related Work |
-| **ADR-003** | 外环/内环分工：Agent 不替代数值优化器猜点，而是输出结构化动作 | 物理提示与直接 LLM 优化在中后期效率不及数值优化器（SimulCost、arXiv:2610.22379），且结构化配置保证预算硬截断与可审计性 | 动作 Schema、预算账本 |
-| **ADR-004** | 把“证据不足敢停”确立为一等动作，并硬拆分 Type 3a 与 Type 3b | 3a（不可辨识/退化：误差低但参数不定）与 3b（结构不可达：误差卡高位且特征冲突）现象相反、诊断检查不同，合并会导致规则和评判冲突 | 考纲、诊断工具、评分器、弃权 Schema |
-| **ADR-005** | 采用 HLE 式反向过筛 + 1:1 对照配比 + 离线标签校验 | 防止基准过易失去区分度；防“遇难就停”或“永不停止”刷分；避免将不可辨识误标为算法失败 | 题目准入红线、题库 QA |
-| **ADR-006** | 三部件严格物理分离（控制器 / 工具与预算账本 / 独立评测器） | 防止数据泄漏与评分漂移；确保所有探针、重复与失败仿真计入同一预算，LLM 费用单列 | 工程架构、`public/` vs `private/` |
-| **ADR-007** | 四组标准对照 + 刻意设置多因一果与物理语义歧义题 | 严格区分“优化器基线”“规则自动化”“通用工具调用”“结构化诊断决策”四层贡献；防止简单 if-else 吃掉全部任务 | 实验矩阵、Type 2 任务设计 |
-| **ADR-008** | 首阶段采用单智能体 + 现成前沿模型，不训练专用模型 | 在任务与评测体系稳定前不做训练投入，聚焦可解释性与清晰归因 | Agent 实现策略 |
-| **ADR-009** | 严格诚实边界：人工时间未测不宣称；若规则够用则诚实收束 | 避免不可靠的定量宣称，保证无论实证偏向 Agent 还是偏向规则/基准，成果均站得住脚 | 指标口径、Gate 3 决策 |
+| **ADR-001** | Benchmark-First positioning named `NeuroDyn-Bench` | Foundation models evolve rapidly; a hard, executable, leak-resistant benchmark has durable impact and anchors method iteration | Repo scope, paper framing |
+| **ADR-002** | Fixed model structure; focus on calibration & process diagnosis | Clean separation from equation-discovery agents (`BMD`/`ModelSMC`/`unsatz`) and passive reporting (`SNOPS`/PPC) | Task scope, action space |
+| **ADR-003** | Outer-loop/inner-loop split + Dual-Track autonomous method choice | LLMs underperform numerical optimizers on mid/late point guessing (`SimulCost`, `arXiv:2610.22379`); benchmark exposes optional optimizers, lightweight Bayesian inference, and diagnostic tools (Track A) plus open Python sandbox (Track B) under one `BudgetLedger` | Gateway, toolbox, sandbox |
+| **ADR-004** | First-class selective abstention with mandatory `3a` vs. `3b` split | `3a` (low error, degenerate parameters) and `3b` (high error, feature trade-off) exhibit opposite symptoms and require distinct probes and grading | Syllabus, tools, evaluator |
+| **ADR-005** | HLE-style reverse screening + 1:1 Type 2/3 pairing + offline `validation_cert.yaml` | Prevents trivial tasks, blocks "always abstain" / "never abstain" gaming, and proves labels mathematically/empirically | QA gates, cert scripts |
+| **ADR-006** | Strict three-way physical separation (`public/` vs. `private/`) & all-inclusive `BudgetLedger` | Prevents data leakage and unbilled probes; LLM costs reported separately alongside physical cost-sensitivity sweeps | `tasks/`, `gateway/`, `eval/` |
+| **ADR-007** | Four control groups (G1–G4) + multi-cause ambiguity & physical hard-bound tasks | Separates optimizer, rule heuristic, general tool use, and diagnostic protocol gains; prevents trivial if-else ties | Baselines, Type 2 design |
+| **ADR-008** | Off-the-shelf frontier models + single agent in Phase 0 (no custom training) | Prioritizes interpretability, reproducibility, and clean attribution before investing in RL/SFT | Agents |
+| **ADR-009** | Strict empirical honesty boundary | No quantitative claims on human time savings without human trials; narrow method claims candidly if deterministic rules suffice | Metrics, Gate 3 decision |
+| **ADR-010** | English-only repository artifacts (`wsuli615` attribution) | Ensures clean international open-source and publication readiness; raw founding Chinese session logs retained under `handoff/` | All active repo files |
 
 ---
 
-## 3. 待决开放问题（Open Questions，需优先推动）
+## 3. Open Questions Tracker (OQs)
 
-| 编号 | 开放问题 | 依赖方 | 阻塞什么 |
+| ID | Open Question | Owner | Status / Blocking Impact |
 | --- | --- | --- | --- |
-| **OQ-01** | 首个真实建模困难案例选哪一个？（同步决定 Small E-I 网络与 FastDMF 谁主谁辅） | 领域合作方 + PI | Gate 0 结束、首批真实任务封装 |
-| **OQ-02** | 真实数据样例、模型代码与预处理脚本由谁交付、何时交付？ | 领域合作方 | Level 2/3 真实任务落地 |
-| **OQ-03** | 真实案例的具体验收标准是什么？（目标统计量清单、达标阈值 $\tau$、留出验证方式） | 领域合作方 + 学生一/二 | 独立评测器配置冻结 |
-| **OQ-04** | ✅ **Resolved (2026-11-22)**：已在 `dgx2felis` 完成双环境单核/32 核并行耗时、随机波动与最小基线实测（Small E-I 3.09 s/次、FastDMF 11.19 s/次），产出 [`docs/gate0_report.md`](gate0_report.md) 与 [`configs/budget.yaml`](../configs/budget.yaml) | 学生一 / `wsuli615` | 已解除阻塞 |
-| **OQ-05** | v0.1 反向过筛选哪 2–3 个当前前沿 LLM 作为参考评测底座？（及 API 预算上限） | PI + 学生二 | Gate 1 过筛与 Gate 2 封闭评测 |
-| **OQ-06** | Phase 0 是否同步安排 1–2 位专家在 3–5 题上记录操作日志？ | 领域合作方 + PI | 是否对“减少专家人工排查时间”作定量报告 |
-| **OQ-07** | 测试集私有托管与滚动更新策略（Git 私有子模块还是独立仓库） | 学生二 | v1.0 开源发布防泄漏机制 |
+| **OQ-01** | Which real stalled modeling case serves as the first collaborator capstone (and finalizes Small E-I vs. FastDMF primary/secondary priority)? | Collaborators + PI | Pending (`docs/collaborator_brief.md` ready); blocks T09/T15 |
+| **OQ-02** | Who delivers real data samples, model code, and preprocessing scripts, and on what timeline? | Collaborators | Pending; blocks Level 2/3 real cases |
+| **OQ-03** | Exact joint acceptance criteria (observables, $\tau$, held-out validation protocol) for real cases | Collaborators + Team | Pending; blocks T09/T15 evaluator lock |
+| **OQ-04** | Single-sim runtime, stochastic variance, and parallel scaling of Small E-I and FastDMF on `dgx2felis` | `wsuli615` | **Resolved (2026-11-22)** — see [`gate0_report.md`](gate0_report.md) and [`configs/budget.yaml`](../configs/budget.yaml) |
+| **OQ-05** | Select 2–3 frontier LLM backbones and API budget cap for G3/G4 screening | PI + Team | Scheduled for Gate 2 |
+| **OQ-06** | Whether Phase 0 includes small-scale human expert timing logs on 3–5 representative tasks | Collaborators + PI | Determines whether human-time quantitative claims are reported |
+| **OQ-07** | Private test split hosting and v1.0 rolling update protocol | Engineering | Currently isolated via `.gitignore` (`private/`); formal hosting for v1.0 |

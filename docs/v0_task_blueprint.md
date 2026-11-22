@@ -1,76 +1,54 @@
-# Phase 0 标杆题单蓝图与分工规划（v0.1 Blueprint）
+# Phase 0 Task Blueprint and Stage-Gate Plan (v0.1)
 
-这份文档把宏大的 **NeuroDyn-Bench** 目标收束成一个可执行、可验证的 **Phase 0（对应 6 周先导期）** 落地计划：先打磨 10–15 道标杆样板硬题 + 完整评测骨架 + 四组对照跑通，拿到决定后续投入方向的硬证据。
-
----
-
-## 1. Phase 0 的唯一核心产出
-
-不贪大、不铺摊子，Phase 0 结束时只看四样硬交付物：
-
-1. **双环境最小复现 + 主环境拍板**：Small E-I 脉冲网络与 FastDMF 各跑通 1 个标准复现实验，结合合作方首批真实困难案例确定主环境与第二环境。
-2. **10–15 道经反向过筛与离线校验的标杆样板题（v0.1）**：完整覆盖 Type 1 / Type 2 / Type 3a / Type 3b，涵盖受控诊断考区（Level 1）与至少 1–3 道真实建模硬骨头（Level 2/3）。
-3. **三部件分离的可执行评测骨架**：类 PEtab 任务加载器、统一预算账本、诊断工具集、独立评测程序与 JSONL 审计日志。
-4. **v0.1 体检基线报告**：在样板题上跑通 G1（原优化器）、G2（专家规则）、G3（通用前沿 Agent）与初版 G4（诊断驱动 Agent），产出第一张成绩单与失败模式统计。
+This blueprint translates the **NeuroDyn-Bench** North Star into an executable **Phase 0 (6-week pilot)** deliverable plan: building and certifying 10–15 prototype tasks (starting with 8 core cross-environment tasks in Gate 1) together with the dual-track harness and G1–G4 closed evaluation.
 
 ---
 
-## 2. 首批 10–15 道标杆样板题设计蓝图
+## 1. Phase 0 Core Deliverables
 
-以下题单按 **Type 1（2 题）+ Type 2（6–7 题）+ Type 3（4–6 题，3a/3b 各半，与 Type 2 形成配对）** 组织，确保每个考点跨至少两个载体模型，且包含与已发表工作对齐的锚题。待合作方交出真实案例后，将其中 2–3 道真实案例槽位替换为实际问题。
-
-| 编号 | 载体模型 | 任务类型 | 考纲主考点 | 埋设的核心困难 / 科学场景 | 预期正确决策链路 |
-| --- | --- | --- | --- | --- | --- |
-| **T01** | AdEx 单神经元（锚题） | Type 1 常规 | M1/M2 基础效率 | 标准设置、合理范围与特征（对齐 Neuroptimus） | 别乱动：直接调用合适优化器高效收敛，不浪费诊断预算 |
-| **T02** | Small E-I 网络（8–10 维） | Type 1 常规 | M1/M2 基础效率 | 良好设置下拟合异步不规则态发放率、CV、相关性与谱峰 | 正常启动优化，验证复现稳定后及时提交 |
-| **T03** | Small E-I 网络 | Type 2 困难 | M1 设置（范围+边界语义） | 相对抑制强度 $g$ 真值在默认上限外（合法可扩），同时另有一项触及物理硬约束的参数 | 识别贴边参数，核对生理边界：合法的扩范围重搜，硬边界的不越界 |
-| **T04** | FastDMF（全脑） | Type 2 困难 | M1 设置（尺度+冗余降维） | 混入多维迟钝/冗余参数 + 时间常数/耦合尺度错配 | 先跑敏感性筛选固定迟钝参数，对跨数量级参数切对数尺度再搜 |
-| **T05** | Small E-I 网络 | Type 2 困难 | M2 迭代（随机方差主导） | 强泊松噪声下默认单次仿真方差淹没优化信号 | 执行复测方差审计，对高潜力候选加大重复次数（SNOPS 式）稳定收敛 |
-| **T06** | Small E-I 网络 | Type 2 困难 | M2 迭代（大片发散/沉默相区） | 默认搜索盒内 >70% 区域处于全网静默或失控爆发态 | 查明为相区问题而非积分步长 bug，启用短仿真可行性筛子或 E/I 比值重参数化 |
-| **T07** | FastDMF / E-I 网络 | Type 2 困难 | M1/M2 数值与目标失衡 | 积分步长偏大导致隐性数值偏移，叠加多特征量纲失衡 | 降步长复核修正数值设置，按容差归一化特征权重后达标 |
-| **T08** | Small E-I 网络 | Type 2 困难（歧义核心题） | M2/M3 多因一果歧义停滞 | 连续两轮拟合停滞：表面像结构不可达，实际是“范围略窄 + 复测噪声大”叠加 | 不盲目弃权、不靠单条规则硬猜：先选廉价鉴别探针排除结构冲突，依次修噪声与范围并成功通过（兼作 T11 的 1:1 对照题） |
-| **T09** | FastDMF / 合作方案例 1 | Type 2 困难（歧义/真实硬骨头） | M1–M3 综合 | 合作方真实卡壳但最终人工修好的案例（或高维 FastDMF 参数补偿后固定子集可解） | 结合物理语义拆分刚性/迟钝参数子集，分阶段校准并通过留出被试/条件验证（兼作 T12 对照题） |
-| **T10** | AdEx / Small E-I | Type 2 + `ask_human` | M1 信息缺口（该问才问） | 刻意缺失特征计算时间窗或外部输入单位约定，仅靠试错会系统性偏移 | 识别信息缺口，调用结构化 `ask_human` 获取约定后一次修通 |
-| **T11** | Small E-I 网络（CBN 拟 SBN） | Type 3b 结构不可达 | M3 诊断敢停 | 数据由带空间结构的 SBN（或带适应/短时程抑制的网络）生成，固定使用无空间结构 CBN 拟合 6 个群体统计量（复刻 SNOPS 核心发现） | 宽域可达性探针 + 特征分组 trade-off 检验发现局部统计量与群体协变（`%sh`/`dsh`/`es`）硬冲突 → 主动停止并报告 3b 结构不可达及冲突指标 |
-| **T12** | AdEx（无适应版拟带适应数据） | Type 3b 结构不可达 | M3 诊断敢停 | 真实/合成目标包含明显发放适应，固定模型关闭适应项 | 发现 F-I 斜率与适应指数无法同时满足，多起点与宽域均卡在稳定残差模式 → 报告 3b |
-| **T13** | Small E-I 网络（单条件欠约束） | Type 3a 不可辨识/退化 | M3/M4 科学诚实 | 仅给单一静息/输入条件下的平均发放率与 CV，$(J, g, I_{\text{ext}})$ 存在强补偿流形 | 拟合误差虽低，但多起点/Fisher 审计发现多组差异巨大的参数等价，且留一或敏感方向不可定 → 报告 3a 不可辨识，并指出需补充的外部刺激条件 |
-| **T14** | FastDMF（高维区域异质 / 表征压缩） | Type 3a 不可辨识/表征损失 | M3/M4 科学诚实 | 仅给高度压缩的静态 FC 摘要统计量反演高维区域耦合参数（呼应 Hartoyo 2019 / Wischnewski 2025 / Cai 2026） | 识别拟合优度高但重复优化参数不可靠、多数维度无信息约束 → 报告 3a 及受约束的刚性方向 |
-| **T15** | 合作方真实困难案例 2 | Level 2/3 真实压轴题 | 综合（视案例归入 Type 2 或 3） | 来自神经科学合作方的真实未公开/一线建模数据与卡壳问题 | 按合作方共同确定的验收标准独立评测 |
-
-> **开发集 / 测试集划分原则**：v0.1 阶段可将上述每个模板生成成对的独立随机实例——固定 1 组进入 `dev`（供系统搭建、规则与 prompt 调试），另用独立随机种子与不同参数区生成封闭 `test` 集（含合作方留出案例/被试），锁定代码后统一封闭评测。
+1. **Dual-Environment Minimal Reproductions (Gate 0 — Completed)**: Verified `Small E-I` (Numba LIF + 6 SNOPS statistics) and canonical C++ `FastDMF` (Schaefer-100 HCP) on `dgx2felis`, resolving OQ-04 (`docs/gate0_report.md`, `configs/budget.yaml`).
+2. **Certified Prototype Benchmark Suite (v0.1, Gate 1)**: First batch of **8 core cross-environment tasks** (`T02, T03, T05, T08, T11, T13` on Small E-I; `T04, T14` on FastDMF) plus paired `*_clean` no-trap controls for `T03/T04/T05/T08` and 3-tier disclosure views (`full` / `names_only` / `blinded`), later expanded to 10–15 tasks once collaborator real cases (T09/T15) and AdEx anchors (T01/T10/T12) arrive.
+3. **Dual-Track Isolated Harness**: PEtab-style `public/` vs. `private/` loader, unified `SimulatorGateway` + `BudgetLedger` + `trace.jsonl`, Track A optional modular toolbox (optimizers + lightweight Bayesian inference + diagnostic probes), Track B open Python sandbox, and independent Evaluator.
+4. **v0.1 Baseline Health Report (Gate 2 -> Gate 3)**: Closed multi-seed evaluation of G1 (raw optimizer), G2 (expert rules), G3 (general tool agent), and G4 (diagnostic agent) with cost-sensitivity curves and failure-mode audits.
 
 ---
 
-## 3. 阶段门控与依赖关系（Stage-Gate Plan）
+## 2. Phase 0 Task Blueprint (T01–T15; Gate 1 Core 8 Highlighted)
 
-按技术依赖拆成四个串并行衔接的门控阶段（对齐先导期安排）：
+| ID | Carrier Model | Task Type | Primary Syllabus Module | Core Injected Challenge / Scientific Regime | Expected Diagnostic & Decision Path | Gate 1 Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **T01** | AdEx single neuron (anchor) | Type 1 Routine | M1/M2 efficiency | Clean setup aligned with Neuroptimus | Optimize directly without wasting diagnostic budget | Gate 1.5 |
+| **T02** | Small E-I (CBN) | Type 1 Routine | M1/M2 efficiency | Clean 4–6D AI regime (`fr_e, isi_cv, ff, rsc, pct_sh`) + held-out `+20%` drive | Run standard optimizer, verify stability, submit | **Gate 1 Core** |
+| **T03** | Small E-I (CBN) | Type 2 Recoverable | M1 Setup (dual bounds) | True `g_ei` above `default_ub` (legally expandable inside `phys_hard_ub`) + second parameter near hard bound (`+ T03_clean`) | `boundary_slack` -> verify hard vs. default bounds -> expand legal dim only | **Gate 1 Core** |
+| **T04** | FastDMF (16D hetero) | Type 2 Recoverable | M1 Setup (scale + sloppiness) | 8 global + 8 regional FIC multipliers (most regional dims sloppy) + linear scale on log-scale params (`+ T04_clean`) | `sensitivity_screen` to freeze sloppy dims + switch to log scale on stiff dims | **Gate 1 Core** |
+| **T05** | Small E-I (CBN) | Type 2 Recoverable | M2 Iteration (variance) | Short-window / high trial-to-trial variance in `rsc` and `pct_sh` swamps single-eval optimizers (`+ T05_clean`) | `repeat_variance` audit -> adaptive repeat averaging on elite candidates | **Gate 1 Core** |
+| **T06** | Small E-I (CBN) | Type 2 Recoverable | M2 Iteration (infeasible zone) | >70% default search box falls in silent or runaway phase regions | `short_feasibility_scan` -> enable short-probe screen / recenter box | Gate 1.5 |
+| **T07** | FastDMF / Small E-I | Type 2 Recoverable | M1/M2 numerics & weights | Coarse `dt` bias combined with unbalanced observable scales | `timestep_check` + tolerance-normalized objective weighting | Gate 1.5 |
+| **T08** | Small E-I (CBN) | Type 2 Ambiguous (Control for T11) | M2/M3 multi-cause stall | Combined slightly narrow bound + elevated repeat noise mimicking an unreachable plateau (`+ T08_clean`) | Cheap discriminative probes exclude 3b conflict -> fix noise & bounds -> pass | **Gate 1 Core** |
+| **T09** | FastDMF / Collaborator Case 1 | Type 2 Hard / Real | M1–M3 integrated | Collaborator stalled-then-recovered case (or staged stiff/sloppy FastDMF) | Physical-semantics subset decomposition + held-out validation | Pending OQ-01 |
+| **T10** | AdEx / Small E-I | Type 2 + `ask_human` | M1 info gap | Intentionally omitted feature window or input unit convention | Detect missing specification -> targeted `ask_human` -> solve | Gate 1.5 |
+| **T11** | Small E-I (CBN fitting SBN) | Type 3b Unreachable | M3 Diagnosis & abstention | Target generated by spatial SBN with spatially correlated input (high `%sh`/`rsc`/`dsh`); solver locked to random CBN | `feature_tradeoff_audit` + `run_ppc_audit` + wide probe -> **abstain `3b_structure_unreachable`** | **Gate 1 Core** |
+| **T12** | AdEx (no adaptation fitting adapting target) | Type 3b Unreachable | M3 Diagnosis & abstention | Adapting target vs. non-adapting fixed model | F-I slope vs. adaptation index trade-off -> **abstain `3b`** | Gate 1.5 |
+| **T13** | Small E-I (single condition) | Type 3a Non-Identifiable | M3/M4 honesty | Only single-condition `fr_e` and `isi_cv` over `(J_ee, g_ei, tau_i, nu_ext_e)`; equivalent fits diverge under `+30%` drive | `run_abc_smc` / `run_laplace_fisher` / `multistart_identifiability` -> **abstain `3a_non_identifiable`** | **Gate 1 Core** |
+| **T14** | FastDMF (static FC only) | Type 3a Non-Identifiable | M3/M4 honesty | Static FC summary inversion over `(G, w, JN, sigma, fic_alpha)` + hetero groups; equivalent fits diverge under `1.25x G` | Low posterior contraction / multi-start parameter drift -> **abstain `3a_non_identifiable`** | **Gate 1 Core** |
+| **T15** | Collaborator Case 2 | Level 2/3 Real Capstone | Integrated (Type 2 or 3) | Unpublished real experimental data and stalled workflow from neuroscience collaborators | Independent evaluation under jointly agreed acceptance criteria | Pending OQ-01 |
+
+> **Dev / Test Split Discipline**: Each Gate 1 template generates independent randomized `dev` and `test` instances with disjoint ground-truth regions and RNG seeds. All prompt/rule tuning happens strictly on `dev`; `test` remains frozen for closed Gate 2 evaluation.
+
+---
+
+## 3. Stage-Gate Milestones
 
 ```mermaid
 flowchart LR
-    g0["Gate 0: 对齐与复现<br/>合作方3问题落地 + 双环境最小复现"] --> g1["Gate 1: 考场与题库 v0.1<br/>任务封装 + 预算账本 + 10-15题离线校验与反向过筛"]
-    g1 --> g2["Gate 2: 四组对照封闭评测<br/>G1/G2/G3/G4 跑通 + 成本扫描 + 失败模式审计"]
-    g2 --> g3["Gate 3: 阶段决策点<br/>评估增益边界 -> 决定扩建 v1.0 大考或收缩转向"]
+    g0["Gate 0: Dual-Env Repro (Done)<br/>Small E-I + FastDMF + budget.yaml"] --> g1["Gate 1: Harness and v0.1 Tasks<br/>Dual-track gateway + 8 certified core tasks"]
+    g1 --> g2["Gate 2: Closed G1-G4 Eval<br/>Multi-seed scores + cost scan + failure audit"]
+    g2 --> g3["Gate 3: Go / Pivot Decision<br/>Scale to 30-50 v1.0 exam or focus on rules/audit"]
 ```
 
-- **Gate 0（开工前提）**：
-  - 与合作方明确：首个真实困难案例、代码与数据对接人、验收标准；
-  - 分别复现 1 个 Small E-I 网络实验和 1 个 FastDMF 实验，确认单次仿真耗时与运行稳定性，拍板主辅环境。
-- **Gate 1（考场冻结）**：
-  - 完成类 PEtab 任务封装、统一预算账本、独立评测程序与核心诊断工具；
-  - 完成 10–15 道样板题的离线校验（Oracle 通过、3a 退化审计、3b 大预算不可达证明）与反向过筛（确认默认 BO / 通用 Agent 会明显失分）；
-  - 冻结 `test` 集与评分标准。
-- **Gate 2（封闭体检）**：
-  - 在 `dev` 集上完成 G2（专家规则）、G3（通用 Agent）与 G4（诊断 Agent）的固定配置；
-  - 锁定配置后，在封闭 `test` 集上多随机种子统一评测 G1–G4，产出分项成绩单、弃权 P/R、诊断净增益与单次仿真代价扫描曲线。
-- **Gate 3（科学诚实决策点）**：
-  - **路径 A（明确正向证据）**：若 G3/G1 在硬题与 Type 3 上明显失分，且 G4 相对 G2（规则）和 G3（无诊断 Agent）展示出稳定的净增益 → 启动 v1.0 扩题（30–50 题）、吸纳更多实验室真实难题、开展小规模专家人工介入对照。
-  - **路径 B（规则足够强或增益仅在局部成立）**：诚实收束方法宣称，将核心贡献聚焦于 NeuroDyn-Bench 基准、神经动力学校准失败模式实证、可辨识性/不可达审计框架以及高性价比的自动化规则引擎。
-
----
-
-## 4. 团队分工建议（6 周先导期）
-
-- **学生一（建模与基准侧）**：负责双环境（Small E-I / FastDMF）最小复现、数据处理、任务包构建、离线标签校验（Oracle / 3a / 3b）与优化器基线（G1）。
-- **学生二（智能体与评测侧）**：负责三部件分离骨架、预算账本、结构化诊断工具、专家规则基线（G2）、通用/诊断 Agent（G3 / G4）与独立评测器/审计流水线。
-- **领域合作方**：负责提供 3–5 个真实建模案例、确定生物物理硬边界与验收标准、抽审样板题真实度并参与结果解释。
-- **项目负责人（PI）**：负责研究问题把关、实验设计与 Gate 0–3 阶段决策。
+- **Gate 0 (Completed for compute & simulators; OQ-01~03 awaiting collaborators)**: Dual minimal reproductions verified on `dgx2felis`; `docs/gate0_report.md` and `configs/budget.yaml` published.
+- **Gate 1 (Active)**: Dual-track isolated harness (Track A optional toolbox with lightweight Bayesian inference + Track B open sandbox), 8 core tasks + `*_clean` controls, offline `validation_cert.yaml` proofs (Oracle $\ge 80\%$, 3a degeneracy proof, 3b $\ge 10\times$ budget proof), and G1/G2 reverse screening.
+- **Gate 2**: Lock G2/G3/G4 configurations on `dev`, run closed multi-seed evaluation on `test`, and produce headline scoreboard + SimulCost sensitivity curves.
+- **Gate 3 (Honesty Gate)**:
+  - **Path A**: If G1/G3 struggle clearly on hard Type 2 & Type 3 tasks and G4 yields consistent net gains over G2/G3 -> scale to 30–50 tasks (v1.0) with community lab contributions and small-scale human timing logs.
+  - **Path B**: If deterministic rules (G2) already dominate most tasks -> candidly scope claims to the benchmark, empirical failure taxonomy, identifiability/unreachability auditing, and cost-effective rule automation.

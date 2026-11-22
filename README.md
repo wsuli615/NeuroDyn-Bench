@@ -1,81 +1,90 @@
 # NeuroDyn-Bench
 
-**神经动力学模型的自动校准与诊断基准（Benchmark-First）与智能体研究平台**  
-*Evaluating and Building Diagnostic Calibration Agents for Neural Dynamics Modeling*
+**An Executable, Cost-Aware Diagnostic Calibration Benchmark and Agent Research Platform for Neural Dynamics Modeling**
 
 ---
 
-## 一句话说清这个项目
+## Executive Summary
 
-神经动力学模型（脉冲网络、神经质量模型、全脑模型）参数调不好时，数值优化器只管继续搜，统计诊断只管写报告，前沿 LLM 容易在长程里迷路或强行交卷。
+When calibrating mechanistic neural dynamics models (spiking neural networks, neural mass models, and whole-brain connectome models), standard numerical optimizers keep searching blindly, statistical diagnostics stop at passive reports, and frontier LLM agents degrade over long horizons or hallucinate overconfident parameter fits when evidence is insufficient.
 
-**NeuroDyn-Bench** 要建一个可执行、成本感知、覆盖“常规校准 / 可恢复困难 / 证据不足敢停”三类任务的神经动力学校准极限考场，并以此严格检验：把结构化诊断信号闭环映射到外环决策动作，究竟能不能在固定预算下提升校准可靠性、减少人工排查，并让系统在无解时诚实停下。
-
----
-
-## 为什么做这件事（四个核心观察）
-
-- **建模越逼真，反问题越病态**：自由参数随尺度增长，伴随强非线性、随机性、参数迟钝性（sloppiness）、退化（degeneracy）、不可辨识与摘要统计量信息损失。拟合误差低不等于参数对。
-- **诊断成熟，但没有接上动作**：统计与 SBI 诊断发展了四十年，SNOPS 也提出了工程诊断信号，但输出全停在“哪里不对”的描述层，中间一直靠人翻译成“下一步改什么”。
-- **现有 Agent 基准暴露了精准空位**：AgentHPOBench、HydroAgent、SimulCost 等最新基准表明，前沿 LLM 在长程调参中会退化、面对含糊诊断信号会改错参数、忽略仿真成本，且缺乏“证据不足时弃权”的机制。
-- **领域内缺少对口的硬基准**：现有神经参数基准（Neuroptimus、sbibm）把任务设置写死、只比内环优化器；机制发现基准（BMD、ModelSMC、NeuronBench、unsatz）搜的是方程结构而非固定结构下的流程诊断。
+**NeuroDyn-Bench** is a **benchmark-first** executable evaluation suite covering three core calibration regimes—**Routine Calibration (Type 1)**, **Recoverable Failures (Type 2)**, and **Evidence-Insufficient / Underdetermined Regimes (Type 3a Non-Identifiable vs. Type 3b Structurally Unreachable)**—under one hard simulation budget. It enables rigorous evaluation of both modular diagnostic-driven controllers (Track A) and open-ended coding agents (Track B) to test whether closing the loop from structured diagnostics to outer-loop search and abstention actions genuinely improves independent validation, scientific honesty, and cost efficiency.
 
 ---
 
-## 核心框架：三部件分离与诊断闭环
+## Motivation: Four Core Observations
+
+1. **Higher biophysical realism yields more ill-posed inverse problems**: Moving from single neurons (3–16 parameters) to balanced spiking circuits (8–11 parameters) and whole-brain models (20–100+ parameters) introduces bifurcations, stochasticity, sloppiness, parameter degeneracy, structural/practical non-identifiability, and summary-statistic information loss. Low training error does not imply recovered parameters or reliable counterfactual predictions.
+2. **Forty years of diagnostics remain stuck at the reporting layer**: Posterior predictive checks (PPC), Bayesian workflow, simulation-based calibration (SBC), SNOPS feasibility/variance/trade-off signals, and hierarchical validity audits diagnose *what* is wrong, but leave the translation into *what workflow action to take next* to human experts.
+3. **Recent scientific agent benchmarks expose the exact capability gap**: AgentHPOBench, HydroAgent, and SimulCost show that frontier LLMs plateau or regress after 3–4 sequential interventions, mis-act on ambiguous logs, ignore simulation costs, and lack principled abstention under insufficient evidence.
+4. **No existing neuroscience benchmark covers this niche**: Parameter optimization suites (`Neuroptimus`, `sbibm`, `PEtab`) fix the search setup and compare inner-loop optimizers only; model discovery benchmarks (`BMD`, `ModelSMC`, `NeuronBench`, `unsatz`) search over model equations/structures rather than fixed-structure calibration workflow diagnosis.
+
+---
+
+## Core Architecture: Three-Way Physical Separation and Dual-Track Interface
 
 ```mermaid
 flowchart TD
-    spec["公开任务包: 模型 + 参数约束 + 目标观测 + 硬预算"] --> agent["决策智能体 (外环控制)"]
-    agent -->|"结构化动作: 扩范围 / 换子集 / 加重复 / 查数值 / 鉴别检查 / 停"| tools["数值工具层: 仿真器 + 优化器 + 诊断统计"]
-    tools -->|"统一预算记账 + 结构化诊断摘要"| agent
-    agent -->|"提交候选参数 或 报告证据不足(3a/3b)"| eval["独立评测程序 (Agent 不可见)"]
-    hidden["隐藏真值 + 留出数据 + 新条件/反事实测试"] --> eval
-    eval --> report["成绩单: 验证通过率 + 弃权P/R + 统一成本 + 诊断净增益"]
+    spec["public/ Task Bundle (PEtab-style TSV/YAML + Hard Budget)"] --> trackA["Track A: Optional Modular Toolbox (G1-G4 Ablations)"]
+    spec --> trackB["Track B: Open Python Sandbox (Frontier Coding Agents)"]
+    trackA -->|"Structured Action JSON"| gw["SimulatorGateway + Unified BudgetLedger"]
+    trackB -->|"Controlled evaluate() Calls"| gw
+    gw --> sims["Fixed-Structure Simulators (Small E-I / FastDMF)"]
+    gw -->|"Structured Summaries + Remaining Budget + trace.jsonl"| trackA
+    trackA -->|"submit_solution or abstain(3a/3b)"| eval["Independent Evaluator (Isolated Process)"]
+    trackB -->|"final_submission.json"| eval
+    hidden["private/ (Ground Truth, Held-Out / Counterfactuals, Cert)"] --> eval
+    eval --> report["Headline Scoreboard: Verified Pass Rate, Abstention P/R/F1, Action Lift"]
 ```
 
-- **研究定位钉死**：固定模型结构、只调参数；诊断对象是校准流程；输出是可执行动作（含“停止”）；核心主张是诊断独立改变了决策与结果。
-- **四组标准对照**：
-  1. **G1 原始优化流程**（BO / CMA-ES / DA / SBI 基线）
-  2. **G2 专家规则流程**（将显式诊断表写成确定性规则）
-  3. **G3 通用工具智能体**（相同工具，无结构化诊断协议）
-  4. **G4 诊断驱动智能体**（主方法）
+- **Strict project scope**: Fixed model structure; outer-loop calibration and process diagnosis; executable actions including first-class abstention (`3a_non_identifiable` / `3b_structure_unreachable`); independent verification under fresh seeds and held-out/counterfactual conditions.
+- **Four standard control groups**:
+  1. **G1 (Raw Optimizer)**: Out-of-the-box BO / CMA-ES under default settings (no diagnostics, never abstains).
+  2. **G2 (Expert Rules)**: Deterministic if-else state machine encoding single-cause diagnostic rules.
+  3. **G3 (General Tool Agent)**: Frontier LLM with identical tools and raw logs, without structured diagnostic protocols.
+  4. **G4 (Diagnostic Calibration Agent)**: Single frontier LLM agent (no task-specific fine-tuning) with structured diagnostic summaries and discriminative probe protocols.
 
 ---
 
-## 候选主环境
+## Dual Candidate Environments (Gate 0 Verified)
 
-首阶段重点考察两类互补环境，前期各完成最小复现并结合领域合作方真实案例确定主辅：
+Both environments are implemented, unit-tested, and empirically profiled on `dgx2felis` (see [`docs/gate0_report.md`](docs/gate0_report.md) and [`configs/budget.yaml`](configs/budget.yaml)):
 
-- **小型兴奋–抑制脉冲网络（8–11 维，CBN / SBN 范式）**：落在 BO 舒适区，易于精确构造随机性、分岔、参数退化与结构不可达，适合受控归因。
-- **FastDMF 全脑神经质量模型（数十维，C++ 内置 BO）**：直接对接真实全脑活动拟合需求，代表高维昂贵校准的真实硬骨头。
+- **Small E-I Spiking Network (8–10D, CBN / SBN paradigm)**: 1,000-neuron Numba-accelerated LIF network with Dale's law, conduction delays, exponential AMPA/GABA synapses, and all 6 SNOPS population activity statistics (`fr_e`, `ff`, `rsc`, `pct_sh`, `dsh`, `es`). Single-core runtime ~3.09 s (`8.68 sims/s` on 32 workers). Ideal for controlled attribution, stochastic variance, and CBN-vs-SBN structural unreachability (Type 3b).
+- **FastDMF Whole-Brain Neural Mass Model (8D–100+D, Schaefer-100 HCP)**: Native `pybind11` C++ binding to canonical `concog/fastdmf` (`DMF.hpp` + Eigen + parallel Balloon-Windkessel BOLD, verified to $10^{-15}$ against upstream reference CSVs). Single-core runtime ~11.19 s (`2.48 sims/s` on 32 workers). Ideal for high-dimensional sloppiness, FC/FCD summary compression, and parameter degeneracy (Type 3a).
 
 ---
 
-## 文档导航
+## Documentation Map
 
-仓库目前处于 **Phase 0**（先定目标、框架、规则与首批样板题，并推进 Gate 0 双环境最小复现），所有设计文档与共识均已沉淀如下：
-
-| 文档 | 解决什么问题 | 建议阅读对象 |
+| Document | Scope | Primary Audience |
 | --- | --- | --- |
-| [`HANDOFF.md`](HANDOFF.md) | 完整项目交接总入口：背景、设计方案、关键决定、下一步计划与全套聊天记录/附件索引 | 接手成员 / 新会话 Agent 必读 |
-| [`north_star.md`](north_star.md) | 北极星目标：终极愿景、钉死的定位边界、三类任务与三层考场、阶段门控与止损判据 | 全员必读 |
-| [`docs/narrative.md`](docs/narrative.md) | 怎么把项目讲清楚：电梯演讲、面向不同受众的表述、与竞品一句话划界、审稿人尖锐质疑应答 | 项目负责人、写稿/汇报 |
-| [`docs/architecture.md`](docs/architecture.md) | 系统框架：三部件隔离、类 PEtab 任务包规范、诊断→动作空间、四组对照与防“规则打平”设计 | 算法与工程开发 |
-| [`docs/rules.md`](docs/rules.md) | 评测规则与考纲：四模块考纲、反向过筛与标签校验红线、预算/评分/防泄漏/统计纪律 | 出题与评测开发 |
-| [`docs/v0_task_blueprint.md`](docs/v0_task_blueprint.md) | Phase 0 落地蓝图：首批 10–15 道标杆样板硬题清单、门控节点与团队分工 | 执行团队 |
-| [`docs/literature_and_gaps.md`](docs/literature_and_gaps.md) | 文献脉络与基准横评：21 篇核心文献 + 2025–2026 基准综述 + Related Work 四条主线 | 全员、写论文 |
-| [`docs/discussion_log.md`](docs/discussion_log.md) | 思路演进与决策记录（ADR）：前期全部讨论梳理、已定共识与开放问题 | 全员同步 |
-| [`docs/collaborator_brief.md`](docs/collaborator_brief.md) | 领域合作方对接清单：三个首要待定问题 + 真实建模案例收集模板 | 发给神经科学合作方 |
-| [`docs/primer_for_cs.md`](docs/primer_for_cs.md) | 神经动力学精准入门（CS 视角）：核心概念、三尺度模型、SNOPS/FastDMF 实例与术语表 | 计算机背景队友 |
-| [`docs/gate0_report.md`](docs/gate0_report.md) | Gate 0 双环境最小复现实证报告：`dgx2felis` 耗时、32 核并行吞吐、10 种子方差与 G1 基线标定（已解决 OQ-04） | 全员、工程与评测开发 |
+| [`north_star.md`](north_star.md) | Vision, hard scope boundaries, 3 task types x 3 exam levels, stage gates, and stop criteria | All contributors |
+| [`HANDOFF.md`](HANDOFF.md) | Project handoff summary, key ADRs, open questions, and archive index | Onboarding & new sessions |
+| [`docs/narrative.md`](docs/narrative.md) | Core pitch, audience-tailored framing, competitor boundaries, and 6 reviewer Q&As | PI, paper writing, talks |
+| [`docs/architecture.md`](docs/architecture.md) | Three-way separation, PEtab-style task bundle, dual-track toolbox/sandbox, and G1–G4 controls | Engineering & benchmark devs |
+| [`docs/rules.md`](docs/rules.md) | Exam syllabus (M1–M4), 6 QA admission gates, budget accounting, anti-gaming metrics, and statistics | Task authors & evaluators |
+| [`docs/v0_task_blueprint.md`](docs/v0_task_blueprint.md) | Phase 0 blueprint: T01–T15 benchmark tasks, Gate 0–3 milestones, and team roles | Core execution team |
+| [`docs/literature_and_gaps.md`](docs/literature_and_gaps.md) | Synthesis of 21 core papers + 2025–2026 agent/calibration benchmarks and Related Work outline | All contributors & paper |
+| [`docs/discussion_log.md`](docs/discussion_log.md) | Design evolution timeline, ADR-001 through ADR-009, and OQ-01 through OQ-07 tracker | Team alignment |
+| [`docs/collaborator_brief.md`](docs/collaborator_brief.md) | Alignment checklist and real-case intake template for neuroscience collaborators | Domain collaborators |
+| [`docs/primer_for_cs.md`](docs/primer_for_cs.md) | Concise neural dynamics primer for CS/AI contributors (models, ill-posedness, glossary) | CS / AI engineers |
+| [`docs/gate0_report.md`](docs/gate0_report.md) | Gate 0 empirical profiling on `dgx2felis`: timings, 32-core scaling, variance, and G1 baseline | Engineering & benchmark devs |
 
 ---
 
-## 近期最优先的三件事（开工前门控）
+## Quick Start
 
-在进入大规模系统编码前，先与领域合作方落实以下三点（详见 [`docs/collaborator_brief.md`](docs/collaborator_brief.md)）：
+```bash
+# 1. Create Python 3.12 environment via uv
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -e ".[dev]"
 
-1. 确定首个真实建模困难案例（同步拍板 FastDMF 与小型 E-I 网络的主辅关系）；
-2. 明确谁提供对应模型代码、真实数据样例与预处理说明；
-3. 共同锁定验收标准（具体指标、达标阈值与交付节点）。
+# 2. Build canonical C++ FastDMF pybind11 extension (clones concog/fastdmf automatically)
+.venv/bin/python scripts/build_fastdmf.py
+
+# 3. Run test suite (pin BLAS threads to 1 for high-core servers)
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 .venv/bin/pytest -v
+```
+
+> **Note on `private/` isolation**: Per ADR-006, all `private/` task directories (ground truths, held-out/counterfactual answers, and `validation_cert.yaml`) are excluded from version control via `.gitignore` and regenerated deterministically via `scripts/build_v0_tasks.py` and `scripts/certify_v0_tasks.py`.

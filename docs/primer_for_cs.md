@@ -1,106 +1,72 @@
-# 写给计算机背景队友的神经动力学精准入门
+# Neural Dynamics Primer for CS and AI Contributors
 
-这份文档帮助没有神经科学背景的同学在 10 分钟内对齐领域概念、核心模型与本项目要解决的反问题。
+A 10-minute technical primer mapping biophysical neural dynamics concepts, multi-scale models, and inverse-problem pathologies onto machine learning and black-box optimization concepts.
 
 ---
 
-## 1. 一句话定义
+## 1. One-Sentence Definition
 
-神经动力学研究的是：生物神经元、局部回路或全脑脑区的电活动如何随时间演化。它的标准研究范式是：
-
-1. 把生物机制写成带噪声的非线性微分方程（或离散事件脉冲系统）；
-2. 用计算机数值仿真；
-3. 将仿真产生的活动统计量与真实实验记录对齐，进而解释神经机制或预测未做过的干预。
-
-换成计算机视角，一个神经动力学模型就是一个**参数带物理单位与硬约束的昂贵随机模拟器**：
+Computational neural dynamics models biological neurons, local circuits, or whole-brain networks as stochastic nonlinear dynamical systems (or hybrid discrete-event spiking systems) and calibrates physically meaningful parameters to match experimental summary statistics:
 
 $$\frac{dx}{dt} = f(x, u; \theta) + \xi(t), \qquad y = h(x) + \epsilon$$
 
-其中 $x$ 是内部状态（膜电位、离子通道门控、突触电流等），$u$ 是实验条件（注入电流、刺激强度等），$\theta$ 是待调物理参数，$\xi$ 是系统内随机性，$h$ 表示实验能观测到的部分（往往只是聚合统计量）。本项目做的“校准”，就是已知观测 $y$，求解这个模拟器的病态反问题 $\theta$。
+From a CS perspective, a neural dynamics model is a **non-differentiable, stochastic, expensive black-box simulator whose parameters carry physical units and hard biological bounds**. Calibration is the ill-posed inverse problem of inferring $\theta$ (or certifying that $\theta$ cannot be uniquely inferred) from partial summary observations $y$.
 
 ---
 
-## 2. 三个尺度与本项目涉及的代表模型
+## 2. Three Biophysical Scales
 
-### 2.1 单神经元（微观单点，3–16 维参数）
+### 2.1 Single Neurons (3–16 Parameters)
 
-细胞膜可近似为一个 RC 电路，膜电位 $V$（静息约 $-70\text{ mV}$）在输入驱动下越过阈值（约 $-50\text{ mV}$）时，产生一个持续约 $1\text{ ms}$ 的动作电位（spike），可视为神经元间传递信息的离散脉冲事件。
+The cell membrane behaves like a leaky RC circuit with membrane potential $V$ (resting $\approx -70\text{ mV}$). When input drives $V$ across threshold ($\approx -50\text{ mV}$), the neuron emits a ~1 ms discrete electrical pulse (an action potential / spike).
 
-- **Hodgkin–Huxley（HH）模型**：用钠、钾离子通道的门控变量精确描绘动作电位波形。
-- **积分–发放（LIF）与 AdEx 模型**：略去脉冲波形细节，$V$ 过阈即记一次 spike 并重置；AdEx 增加了指数起峰项和适应电流（持续刺激下发放逐渐变慢）。
-- **实验观测**：电流钳下不同阶跃电流的电压记录，常提取 F-I 曲线、适应指数、首个 spike 潜伏期、ISI 变异系数等特征。
+- **Hodgkin–Huxley (HH)**: Detailed ion-channel gating ODEs reproducing full spike waveforms.
+- **LIF / AdEx**: Threshold-and-reset abstractions; AdEx adds exponential spike initiation and spike-frequency adaptation (firing slows under sustained current).
+- **Observables**: Patch-clamp current-clamp features (F-I curve, adaptation index, first-spike latency, ISI CV).
 
-### 2.2 脉冲神经网络 SNN（微观回路，8–11 维核心参数 —— 候选主环境一）
+### 2.2 Spiking Neural Networks (8–11 Core Parameters — Candidate Environment 1)
 
-将数百到数万个神经元按连接矩阵 $W$ 连成网络。神经元分 **兴奋性（E）和抑制性（I）** 两类（皮层约 8:2），满足 **Dale 定律**（单个神经元的所有输出同号）。核心仿真逻辑极简示意：
+Networks of $N$ excitatory (E) and inhibitory (I) neurons (typically 4:1 cortical ratio) obeying **Dale's law** (all outgoing synapses from one neuron share the same sign), coupled via sparse adjacency matrix $W$ with synaptic time constants ($\tau_E \approx 2\text{–}10\text{ ms}$, $\tau_I \approx 5\text{–}20\text{ ms}$) and conduction delays:
 
-```python
-for step in range(n_steps):
-    s += dt * (-s / tau_syn)                    # 突触电流按突触时间常数衰减
-    V += dt / tau_m * (-(V - E_L) + s + I_ext)  # 膜电位累积输入
-    fired = V >= V_th                           # 越阈发放脉冲
-    V[fired] = V_reset                          # 重置电位
-    s += W[:, fired].sum(axis=1)                # 按连接强度给下游加电流
-```
+- **E/I Balance**: Large opposing excitatory and inhibitory currents roughly cancel, leaving fluctuations that drive cortical-like **Asynchronous Irregular (AI)** firing.
+- **SNOPS Paradigm (Wu et al. 2024)**:
+  - **CBN (Classical Balanced Network)**: Uniform random Erdős–Rényi connectivity.
+  - **SBN (Spatial Balanced Network)**: Neurons embedded on a 2D periodic sheet with distance-dependent connectivity widths $(\sigma_E, \sigma_I)$.
+  - **Six Population Activity Statistics**: Mean firing rate (`fr_e`), single-neuron Fano factor (`ff`), pairwise spike-count correlation (`rsc`), and three Factor Analysis covariability metrics—percent shared variance (`%sh`), shared dimensionality (`dsh`), and shared eigenspectrum (`es`). SNOPS showed that CBN cannot jointly match all six macaque V4 statistics while SBN can—the canonical prototype for our **Type 3b (structurally unreachable)** tasks.
 
-- **核心物理现象**：
-  - **E/I 平衡**：每个神经元收到的兴奋与抑制输入都很大，但大致相消，靠残余涨落驱动不规则发放（异步不规则态，最接近清醒皮层）。
-  - **关键参数**：连接强度 $J$、相对抑制强度 $g$、突触时间常数（AMPA 约 2–5 ms、$\text{GABA}_A$ 约 5–10 ms、NMDA 约 50–150 ms）、传导延迟、外部输入率。
-- **经典案例 SNOPS（Wu et al. 2024）里的两个网络与 6 个统计量**：
-  - **CBN（经典平衡网络）**：神经元之间按固定概率完全随机连线。
-  - **SBN（空间平衡网络）**：细胞排在二维平面上，距离越近越容易连上。
-  - **观测目标**（猕猴 V4 / PFC 多电极 Utah 阵列，50 神经元 × 700 试次）：只拟合单神经元/成对指标（平均发放率 `fr`、Fano 因子 `ff`、成对相关 `rsc`）不够，必须同时匹配因子分析提取的群体协变统计量——共享方差占比 `%sh`、共享维度 `dsh`、特征谱 `es`。SNOPS 发现 CBN 无法同时匹配全部 6 项，而引入空间结构的 SBN 可以——这是本项目 **Type 3b（结构不可达）** 最经典的真实原型。
+### 2.3 Neural Mass and Whole-Brain Models (8–100+ Parameters — Candidate Environment 2)
 
-### 2.3 神经质量与全脑网络（介观/宏观，20 至 100+ 维 —— 候选主环境二）
-
-- **Wilson–Cowan（群体模型）**：不追踪单个 spike，用两个耦合 ODE 描述兴奋群体 $E$ 和抑制群体 $I$ 的平均活动，可产生稳态、极限环振荡或双稳态。
-- **DMF / FastDMF（全脑模型）**：把每个脑区抽象为一个 E–I 神经质量节点（如 reduced Wong–Wang），再按人脑扩散磁共振测出的 **结构连接组（SC）** 将几十到上百个脑区耦合起来，前向生成模拟 BOLD（fMRI）或 EEG 信号，用来拟合真实功能连接（FC）或频谱特征。FastDMF 用 C++ 加速并内置了贝叶斯优化，直接面临高维参数耦合与退化问题。
+- **Wilson–Cowan / Dynamic Mean Field (DMF)**: Instead of individual spikes, each brain region is represented by coupled E-I population rate ODEs.
+- **FastDMF (Herzog et al. 2024; Deco et al. 2014)**: Couples 100 cortical regions (Schaefer-100 HCP structural connectome $C$) via global coupling $G$, local excitatory recurrence $w$, and analytic Feedback Inhibition Control ($J_i = \alpha G S_i + 1$) to maintain ~1–3 Hz resting rates, passing firing rates through a Balloon–Windkessel hemodynamic filter to generate simulated resting-state fMRI BOLD time series evaluated via static **Functional Connectivity (`FC`)** and sliding-window **Functional Connectivity Dynamics (`FCD`)**.
 
 ---
 
-## 3. 为什么比普通 ML 超参优化难得多？
+## 3. Why Neural Dynamics Calibration Is Harder Than Standard ML HPO
 
-从优化与统计角度看，神经动力学反问题同时叠满六重病态特征：
-
-1. **分岔（Bifurcation）导致不连续与大片无效区**：参数稍微跨过相变边界，网络可能从正常异步发放瞬间坍缩为全网沉默或失控高频爆发，梯度与局部代理模型失效。
-2. **参数跨数量级**：时间常数与连接权重常跨 2–3 个数量级，线性尺度搜索极低效。
-3. **高昂且带噪声的黑箱评估**：大规模 SNN 单次仿真可达数分钟（SNOPS 实测 373 s/次），且泊松输入/随机连线导致同一参数两次运行输出不同，必须重复取均值。
-4. **不可微与部分观测**：脉冲是离散跳变事件，且实验只看得到少数细胞或宏观汇总信号，只能匹配统计特征。
-5. **Sloppiness、Degeneracy 与不可辨识（最重要！）**：
-   - **Sloppiness（迟钝性）**：灵敏度跨多个数量级，少数“刚性”组合方向决定输出，大量“迟钝”方向几乎不影响观测。
-   - **Degeneracy（退化）**：截然不同的参数组合产生几乎完全相同的神经活动（Prinz 2004）。
-   - **Identifiability（可辨识性）**：有些参数在给定观测下数学上或实践上根本定不出来（Hartoyo 2019 证明 22 参数模型拟合 EEG 时仅 1 个参数可辨识），或者摘要统计量压缩丢掉了关键信息（Cai 2026）。
-   - **对本项目的直接含义**：训练误差降下去 ≠ 参数是对的；当数据本身不含信息时，停止搜索并如实报告不确定性，比强行交出一个“最优参数”更科学。
-6. **模型结构本身可能不完备**：固定结构下有时根本不存在能让全部统计量同时达标的参数（如 CBN 拟合 SBN 数据）。
+1. **Bifurcations and massive infeasible regions**: Small parameter shifts cross phase transitions into total silence (`0 Hz`) or epileptic runaway (`150–400+ Hz`), breaking smooth surrogates.
+2. **Multi-order parameter scales**: Synaptic and membrane time constants span decades; linear search boxes stall.
+3. **High evaluation cost and stochastic variance**: Poisson drive and finite-window sampling produce huge trial-to-trial variance (e.g., `rsc` CV $\approx 0.98$ in Gate 0a), causing single-eval optimizers to chase noise.
+4. **Partial, non-differentiable summary observations**: Discrete spikes and macroscopic BOLD summaries discard microscopic trajectories.
+5. **Sloppiness, Degeneracy, and Non-Identifiability**:
+   - **Sloppiness** (Gutenkunst 2007): Fisher eigenvalues span orders of magnitude—only a few "stiff" combinations control observations while most "sloppy" directions drift freely.
+   - **Degeneracy** (Prinz 2004): Distinct parameter vectors produce identical baseline observables yet diverge under perturbations.
+   - **Non-Identifiability & Summary Loss** (Hartoyo 2019; Wischnewski 2025; Cai 2026): Low training loss does **not** guarantee unique parameters; stopping honestly (`3a`) beats fabricating a single point.
+6. **Structural incompleteness (`3b`)**: Fixed equations may be fundamentally incapable of simultaneously matching all recorded population statistics.
 
 ---
 
-## 4. 和深度学习建模的本质差异
+## 4. Quick Glossary
 
-| 维度 | 深度学习模型 | 神经动力学机理模型 |
-| --- | --- | --- |
-| **参数数量与含义** | 百万至千亿级，单参数无物理意义 | 几个到几百个，每个都有物理单位、测量依据和生理硬边界 |
-| **目标** | 同分布任务精度 | 解释生物机制、做分布外反事实干预预测（如阻断某通道、改变 E/I） |
-| **数据形态** | 大规模标注/序列样本 | 稀缺、昂贵、高噪声的电生理或脑影像统计特征 |
-| **拟合失败的含义** | 欠拟合/超参或容量不足 | 可能是优化设置问题，也可能是科学假设（模型机制）或观测本身不足 |
-
----
-
-## 5. 高频术语速查表
-
-| 术语 | 一句话含义 |
+| Term | Concise Meaning |
 | --- | --- |
-| 膜电位 $V$ | 细胞内外电压差，静息约 $-70\text{ mV}$ |
-| 动作电位 / spike | 约 $1\text{ ms}$ 的电脉冲，神经元发出的离散事件 |
-| 发放率（firing rate） | 单位时间脉冲数（Hz） |
-| ISI 变异系数（CV） | 相邻脉冲间隔的标准差/均值，衡量不规则性（泊松过程为 1） |
-| 突触时间常数 $\tau_{\text{syn}}$ | 突触电流衰减快慢（数 ms 到百 ms） |
-| E/I 平衡 | 兴奋与抑制输入近似抵消、由涨落驱动不规则发放的工作态 |
-| Dale 定律 | 一个神经元的所有输出突触要么全兴奋、要么全抑制 |
-| CBN / SBN | 经典随机平衡网络 / 按空间距离连线的平衡网络 |
-| `%sh` / `dsh` / `es` | 因子分析得到的群体共享方差占比、共享维度、特征谱 |
-| DMF / FastDMF | 全脑动态平均场模型及其 C++ 加速实现 |
-| 分岔（Bifurcation） | 参数连续变化引发动力学定性跃迁（如静息→振荡→发散） |
-| Sloppiness / Degeneracy | 参数灵敏度悬殊（刚性 vs 迟钝）/ 多组不同参数产生等价活动 |
-| 可辨识性（Identifiability） | 给定观测下参数能否被唯一确定 |
-| 孪生实验（Twin Experiment） | 用已知真参数的模型生成合成数据，用来严格检验反演与诊断方法 |
+| **Firing rate (`fr`)** | Spikes per second per neuron (Hz) |
+| **ISI CV** | Inter-spike interval SD / mean (~1 for Poisson irregular firing) |
+| **Fano factor (`ff`)** | Spike-count variance / mean across non-overlapping time windows |
+| **Spike-count correlation (`rsc`)** | Mean pairwise Pearson correlation of window spike counts across neuron pairs |
+| **`%sh` / `dsh` / `es`** | Factor Analysis percent shared variance, 95%-variance shared dimensionality, and shared eigenspectrum |
+| **Dale's Law** | Each neuron makes exclusively excitatory or exclusively inhibitory outgoing synapses |
+| **CBN / SBN** | Classical (random) vs. Spatial (2D distance-dependent) Balanced Network |
+| **FIC** | Feedback Inhibition Control stabilizing whole-brain regional firing rates near ~1–3 Hz |
+| **FC / FCD** | Static BOLD functional connectivity matrix / sliding-window dynamic FC distribution |
+| **Sloppiness / Degeneracy** | Extreme sensitivity anisotropy / multiple distinct parameter sets yielding equivalent outputs |
+| **Twin Experiment** | Synthetic data generated from a known ground-truth parameter vector $\theta^*$ for controlled evaluation |

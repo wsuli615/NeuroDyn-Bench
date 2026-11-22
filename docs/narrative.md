@@ -1,89 +1,77 @@
-# 如何把 NeuroDyn-Bench 讲清楚（项目叙事与对外沟通指南）
+# Narrative and Positioning Guide
 
-这份文档专门回答一个问题：面对不同背景的听众（神经科学合作方、AI/ML 审稿人、计算神经科学审稿人、团队内部新人），现在怎么说清这个项目最精准、最有说服力、最不容易被误解？
+This document defines how to communicate **NeuroDyn-Bench** clearly across four distinct audiences (neuroscience collaborators, AI/ML reviewers, computational neuroscience reviewers, and CS/AI teammates) while preempting the six sharpest reviewer critiques.
 
 ---
 
-## 1. 统一核心叙事（1 分钟完整版）
+## 1. Unified One-Minute Pitch
 
-> 神经动力学建模需要把连接强度、兴奋–抑制平衡、突触时间常数等物理参数调到与实验数据一致，但这是一类典型的病态反问题：高维、昂贵、强随机，而且存在参数退化与不可辨识——拟合误差低不等于参数对，拟合停滞时也分不清是搜索没设好还是模型/数据本身定不出来。
+> Mechanistic neural dynamics models require calibrating biophysical parameters—synaptic weights, excitation-inhibition ratios, time constants, and coupling strengths—against noisy experimental recordings. This inverse problem is severely ill-posed: high-dimensional, computationally expensive, stochastic, and prone to parameter degeneracy and non-identifiability, where low training error does not imply accurate parameters and stalled fits conflate setup mistakes with fundamental lack of identifiability or structural mismatch.
 >
-> 现有贝叶斯优化、数据同化和 SBI 解决了“怎么搜”，统计学和领域方法积累了四十年“怎么看哪里不对”的诊断工具，但诊断一直停在报告层，把诊断翻译成“下一步怎么改流程或何时该停”仍然靠人。同时，2026 年的多个 Agent 基准证明，前沿 LLM 并非不会优化，而是在长程任务里因缺少结构化诊断而退化，且在无解时不敢停。
+> Classical Bayesian optimization, data assimilation, and SBI address *how to search*, while forty years of statistical and domain diagnostics address *how to report what is wrong*. Yet closing the loop from diagnostic evidence to outer-loop workflow actions—including knowing when to stop—remains manual. Meanwhile, 2026 agent benchmarks show that frontier LLMs degrade over long horizons on ambiguous logs and overconfidently submit fabricated fits when evidence is insufficient.
 >
-> 因此我们发起 **NeuroDyn-Bench**：先建立计算神经科学领域首个可执行、成本感知、带“证据不足敢停”考点的自动校准与诊断大考，再在统一预算和四组严格对照下，检验“把结构化诊断闭环接入外环决策动作”究竟能带来多少可验证的可靠性与效率增益。
+> **NeuroDyn-Bench** establishes the first executable, cost-aware calibration and diagnosis exam for computational neuroscience, testing whether coupling structured diagnostic evidence to outer-loop search and selective abstention (`3a` non-identifiable vs. `3b` structurally unreachable) genuinely improves independent validation reliability and scientific honesty under fixed budgets.
 
 ---
 
-## 2. 面对四类听众，分别怎么讲
+## 2. Audience-Specific Framing
 
-### 2.1 对神经科学领域合作方（最关心：真能解决我的痛点吗？靠谱吗？）
+### 2.1 For Neuroscience Collaborators
 
-讲法重点：少谈 LLM 概念、多谈他们每天卡壳的真实工作流与科学严谨性。
+- **Emphasize scientific rigor and workflow relief, not LLM hype**: We do not replace your mechanistic model with a black box and we do not let AI alter your equations. Your model structure stays fixed; our system diagnoses why calibration stalls, adjusts the search workflow, and warns you with auditable numerical evidence when the available data cannot uniquely identify parameters.
+- **Concrete ask**: One real data sample, 1–3 genuine stalled modeling cases, and joint acceptance criteria (see [`collaborator_brief.md`](collaborator_brief.md)).
 
-- **定位**：我们不是要做一个黑盒模型替代你的机理模型，也不是让 AI 乱改你的方程；你的模型结构不动，我们做的是帮你诊断调参为什么卡住、自动改搜索流程、并在数据确实定不出参数时及时预警的系统，并先拿一组包含你真实案例的硬题把它测透。
-- **利益点**：降低反复试错和肉眼排查的人工投入；每一轮为什么扩范围、加重复、换子集或停下来，都有可审计的数值证据，不盲目交出一个过拟合的假解。
-- **立刻要对方配合的只有三件事**：1 个真实数据样例、1–3 个实际卡住的建模案例、一起定验收标准（详见 [`collaborator_brief.md`](collaborator_brief.md)）。
+### 2.2 For AI / Agent Reviewers
 
-### 2.2 对 AI / Agent 社区与顶会审稿人（最关心：为什么不是套壳？Benchmark 够硬吗？）
+- **Targets three verified frontier-agent weaknesses simultaneously**: Long-horizon degradation on noisy logs (`AgentHPOBench`), premature stopping / out-of-bounds proposals / diagnosis-action misalignment (`HydroAgent`), and ignored physical simulation costs (`SimulCost`).
+- **Selective abstention as a first-class metric**: Analogous to calibration error in `Humanity's Last Exam`, Type 3a (non-identifiable) and Type 3b (structurally unreachable) tasks paired 1:1 with hard-but-solvable Type 2 controls defeat both "never stop" and "always abstain" gaming.
+- **Four-group controls eliminate wrapper illusions**: Explicit comparison across G1 (raw optimizer), G2 (expert rules), G3 (general tool agent without diagnostic protocol), and G4 (diagnostic agent), plus Track B open sandbox evaluation for frontier coding agents.
 
-讲法重点：直接切入能力边界、评测科学性与“诊断→动作 + 弃权”的泛化价值。
+### 2.3 For Computational Neuroscience Reviewers
 
-- **为什么有独特学术价值**：
-  - **补上 Agent 能力边界的实证空位**：AgentHPOBench 证明 LLM Agent 在第 4 步后退化，瓶颈在含糊日志诊断；HydroAgent 指出过早停止、越界提案和诊断-动作错位；SimulCost 指出忽略仿真成本会导致虚假优势。NeuroDyn-Bench 把这三个痛点同时放在一个高病态、可执行、成本硬约束的真实科学领域里系统评测。
-  - **把“科学诚实（Selective Abstention）”做成一等评测维度**：像 HLE 暴露出前沿模型的幻觉校准误差一样，我们在物理反问题中引入带严格标签的 Type 3a（不可辨识）与 Type 3b（结构不可达）任务，直接打击“强行交卷”的刷分行为。
-  - **严格的对照组排除“套壳假象”**：内置原始优化器、专家规则、无诊断通用 Agent、诊断 Agent 四组对照，专门测“多因一果歧义”“物理硬约束语义”“残余预算动态权衡”这些 if-else 很难写死的决策，并用实证回答 LLM 增益到底来自哪里。
+- **Grounded in inverse-problem pathology**: Explicitly embraces `sloppiness` (Gutenkunst 2007), `degeneracy` (Prinz 2004, Marder 2006), practical `non-identifiability` (Hartoyo 2019, Wischnewski 2025), and summary-representation information loss (Cai 2026). We never treat synthetic parameter drift on sloppy directions as optimizer failure; grading relies on independent replication, held-out/counterfactual predictions, and honest identifiability reporting.
+- **Crisp boundary with adjacent tools**: See Section 3.
 
-### 2.3 对计算神经科学审稿人（最关心：懂不懂领域病态性？和 SNOPS/BMD/Neuroptimus 啥区别？）
+### 2.4 For CS / AI Engineering Teammates
 
-讲法重点：把理论地基（sloppiness / degeneracy / identifiability / 表征信息损失）与邻域边界讲死。
-
-- 我们明确承认“拟合好 ≠ 参数对”（Prinz 2004, Gutenkunst 2007, Hartoyo 2019, Wischnewski 2025, Cai 2026），因此绝不把合成参数估计偏差简单归咎于优化器失败，也绝不把训练误差下降当作唯一成功标准，而是以独立复现、留出数据、新条件/反事实预测 + 可辨识性诚实报告作为最终判据。
-- 一句话划清与四个最近邻工作的边界（见第 3 节）。
-
-### 2.4 对团队内部计算机背景成员（最关心：神经动力学是什么？我具体写什么模块？）
-
-- **一句话翻译**：神经动力学模型 = 参数带物理单位与硬约束、不可微、带噪声、运行昂贵的动力学模拟器；校准 = 其病态黑盒反问题；我们的系统 = 给数值优化器装一个带诊断仪表盘和熔断机制的外环控制器，并先给这个控制器造一套防作弊的自动化考场。
-- 配套完整入门读物见 [`primer_for_cs.md`](primer_for_cs.md)。
+- **One-sentence translation**: A neural dynamics model is a noisy, non-differentiable, expensive simulator with physically constrained parameters; calibration is its ill-posed black-box inverse problem; NeuroDyn-Bench builds the leak-proof exam harness and optional diagnostic/inference outer-loop tools around those simulators. See [`primer_for_cs.md`](primer_for_cs.md).
 
 ---
 
-## 3. 与邻域工作的“一句话划界表”
+## 3. One-Sentence Boundary Table vs. Neighboring Work
 
-汇报和写 Related Work 时，用这张表直接封死审稿人“你们和 XXX 有什么区别”的追问：
-
-| 邻域工作 | 它们做什么 | 我们与它们的精确区别 |
+| Neighboring Work | What It Does | Exact Distinction from NeuroDyn-Bench |
 | --- | --- | --- |
-| **Neuroptimus / sbibm / PEtab** | 固定好参数、范围、观测与损失，比较内环优化/推断算法 | 它们跳过“任务设置、失败排查与流程调整”；我们考的是外环决策与诊断闭环 |
-| **SNOPS (Wu et al. 2024)** | 用可行性/方差/trade-off 技巧辅助 BO 拟合脉冲网络，并诊断模型结构局限 | SNOPS 的诊断指向模型结构够不够灵活且流程写死；我们把诊断信号映射为优化流程的动态动作与停止决策 |
-| **BMD / ModelSMC / unsatz** | 让 LLM 搜索并改写模型方程/结构形式，固定拟合器估参数 | 它们问“哪个方程对”，我们问“固定模型结构下，参数怎么校、卡住了怎么改、值不值得继续找” |
-| **NeuronBench (Murphy 2026)** | 在有限实验预算下主动挑选电流钳/药理干预以发现未知通道机制 | 它考的是主动实验设计 + 机制发现；我们聚焦给定观测条件下的校准与过程诊断 |
-| **AgentHPOBench / TuneBench / HydroAgent / SimulCost** | 跨领域 HPO 或电力/水文/物理仿真调参基准 | 它们不在神经动力学领域，且缺少 **“可恢复困难 vs 不可辨识(3a) vs 结构不可达(3b)”** 的成对诊断与敢停评测 |
-| **Humanity's Last Exam (HLE)** | 静态专家难题大考，靠反向过筛拉高上限并暴露幻觉 | 我们学它的反向过筛、诚实校准导向、滚动隐藏集；不做静态问答，做可执行、可自动复核的交互仿真考场 |
+| **Neuroptimus / sbibm / PEtab** | Fixes parameters, bounds, observables, and losses to benchmark inner-loop optimizers/inference | Skips task setup, stall diagnosis, workflow adaptation, and abstention; we test outer-loop decision making |
+| **SNOPS (Wu et al. 2024)** | Uses feasibility/variance/trade-off heuristics inside BO for spiking networks and assesses model structural flexibility | SNOPS uses a fixed workflow and diagnoses model expressivity; we map diagnostic probes to dynamic workflow actions and stopping decisions |
+| **BMD / ModelSMC / unsatz** | Uses LLMs to propose/rewrite model equations while keeping the fitter fixed | They ask *which equation is right*; we fix the structure and ask *how to calibrate, recover from stalls, and know when evidence is insufficient* |
+| **NeuronBench / MDA (Murphy 2026)** | Active experimental design (choosing current/pharmacological interventions) to discover unknown channels | Focuses on active experiment selection and mechanism discovery; we focus on calibration and process diagnosis under given observations |
+| **AgentHPOBench / TuneBench / HydroAgent / SimulCost** | ML HPO or power/hydrologic/physics simulation calibration benchmarks | Outside neuroscience and lack paired **Type 2 recoverable vs. Type 3a non-identifiable vs. Type 3b unreachable** abstention protocols |
+| **Humanity's Last Exam (HLE)** | Static expert QA exam using reverse screening and calibration scoring | We adopt reverse screening, honesty scoring, and rolling private splits, but build executable budgeted simulations with automated counterfactual verification |
 
 ---
 
-## 4. 提前准备好的 6 个尖锐质疑与标准回答
+## 4. Six Anticipated Reviewer Critiques and Standard Responses
 
-1. **质疑 1：“把那张 5 行诊断表写成 if-else 规则不就行了吗，为什么要上 LLM Agent？”**
-   - **回答**：这正是我们设置“专家规则”对照组的原因。对单因单果的直白异常（如明确贴边界），规则确实够用且应当胜出；我们重点考察的是多因一果的歧义停滞（需先选便宜的鉴别性检查再行动）、依赖生物物理语义的约束判断（区分“范围设窄”与“生理硬边界”，决定参数补偿时先固定哪组变量）以及有限剩余预算下的动态权衡。而且我们采取诚实立项原则：如果实证发现专家规则在大部分任务上已经足够，我们就如实报告这一边界，不强行吹捧 LLM。
-2. **质疑 2：“小模型仿真只要几毫秒，调一次 LLM 反而更贵更慢，这有实际意义吗？”**
-   - **回答**：这是 SimulCost 已经敲响的警钟。我们不拿总墙钟时间在小模型上硬比，而是把所有仿真、探针与失败尝试统一计入仿真预算，单独列明 LLM 调用成本，并做单次仿真代价扫描（从毫秒级扫到 SNOPS 级的数百秒/小时级），明确标出诊断 Agent 开始在总计算成本上划算的临界点。
-3. **质疑 3：“合成数据里参数估不准，怎么证明不是参数本来就不可辨识？”**
-   - **回答**：规则里硬性规定：所有合成任务入库前必须做离线可辨识性与可达性校验。Type 1/2 题只在可辨识方向和预测误差上判分，且必须先验证神谕配置能通过；本来就不可辨识的设定直接归入 Type 3a，正确行为是报告不可辨识而非强行打低分。
-4. **质疑 4：“你们说要做成神经动力学界的 Last Exam，2 名学生 6 周做得完吗？”**
-   - **回答**：大考靠的是单题含金量、反向过筛标准和可执行协议，不是靠一开始堆 2000 题。Phase 0（前 6 周）只做 10–15 道标杆样板硬题 + 完整评测骨架，先拿到“前沿模型和开箱优化器真实翻车率”的硬证据；立住之后再联合合作方和社区滚成 30–50 题的 v1.0。
-5. **质疑 5：“LLM 训练语料里见过 HH、Brunel、Allen、FastDMF 的经典参数，怎么防止背答案？”**
-   - **回答**：四重防线——（1）合成题真值在生理合法范围内随机生成，刻意偏离教科书默认值（借鉴 TuneBench）；（2）支持参数名盲化消融（检测模型是靠物理推理还是靠背名字）；（3）真实数据题采用未公开合作方数据或留出被试/刺激；（4）开发集与封闭测试集严格分离，未来引入滚动私有集。
-6. **质疑 6：“既然声称减少人工排查，为什么第一阶段不直接大规模测真人专家？”**
-   - **回答**：规则明确写死：未做真人对照前，绝不对“减少专家时间”作定量宣称。前期用固定专家修正手册和“该问才问”结构化提问作为可复现代理指标；待任务稳定后，再通过小规模专家操作日志（记录主动决策时间与介入次数）做真实校准。
+1. **"Can't you just hardcode a 5-row diagnostic table as if-else rules instead of using an LLM?"**
+   - That is exactly why **G2 (Expert Rules)** is a mandatory control group. Simple single-cause failures should be solved cleanly by rules. Our hard tasks target multi-cause ambiguous stalls (requiring cheap discriminative probes before acting), biophysical hard-bound vs. arbitrary-bound semantics, and dynamic trade-offs under remaining budget. Under **ADR-009**, if rules empirically match agents across the suite, we will report that boundary honestly.
+2. **"If a small simulator runs in seconds, isn't calling an LLM slower and more expensive?"**
+   - Following `SimulCost`, we bill all simulations, repeats, probes, and failures into one simulation-unit budget, report LLM tokens/latency separately, and sweep physical simulation cost from `0.1 s` to `300 s` (SNOPS scale) to identify the exact break-even regime where diagnostic reasoning pays off.
+3. **"In synthetic tasks, how do you ensure parameter recovery error isn't simply non-identifiability?"**
+   - Every task requires offline `validation_cert.yaml` certification before admission. Type 1/2 tasks are verified solvable via Oracle ($\ge 80\%$ pass rate) and graded on observable fit + held-out/counterfactual prediction (only reporting parameter error along stiff, identifiable directions). Intrinsically underdetermined regimes are labeled **Type 3a**, where abstaining is the correct answer.
+4. **"Can a small team realistically build a 'Last Exam' benchmark in a 6-week pilot?"**
+   - Depth, reverse screening, and executable verification—not 2,500 static MCQs—define a scientific exam. Phase 0 builds 10–15 rigorously certified prototype tasks (starting with 8 core cross-environment tasks in Gate 1) to establish hard empirical failure rates, before scaling to 30–50 tasks in v1.0.
+5. **"Haven't LLMs memorized classic HH, Brunel, Allen, and FastDMF defaults from pretraining?"**
+   - Four defenses: (a) randomized ground truths strictly away from published defaults (`TuneBench` rule); (b) three-tier disclosure ablation (`full` / `names_only` / `blinded` as `p0, p1, ...`); (c) unpublished collaborator data and held-out counterfactuals; (d) strict `dev` vs. frozen/rolling `test` separation.
+6. **"Why claim reduced human debugging effort without a large-scale user study in Phase 0?"**
+   - **Rule 5.2 / ADR-009** explicitly forbids quantitative claims about human time reduction until human expert logs are collected. Phase 0 uses fixed expert-rule baselines and structured `ask_human` gap items as reproducible proxies.
 
 ---
 
-## 5. 一张图记住对外表达的主次顺序
+## 5. Recommended Presentation Flow
 
-对外介绍时，始终按这个顺序讲，不要反过来：
-
-1. **先讲真痛点**：神经动力学反问题的病态性与人工调参排查成本；
-2. **再讲科学空位**：诊断停在报告层 + Agent 长程退化且不敢停；
-3. **再讲载体**：NeuroDyn-Bench（三类任务 × 反向过筛 × 统一预算 × 独立验证）；
-4. **最后讲方法与诚实态度**：诊断驱动的外环决策 Agent + 四组严格对照，让数据决定智能体在哪些场景真正值回票价。
+Always present the project in this order:
+1. **Real scientific bottleneck**: Ill-posed neural dynamics inverse problems and manual calibration debugging cost;
+2. **Sharp research gap**: Diagnostics stuck at reporting + LLM long-horizon degradation and refusal to abstain;
+3. **Executable carrier**: **NeuroDyn-Bench** (3 task types x reverse screening x unified hard budget x counterfactual verification);
+4. **Honest empirical evaluation**: Four-group controls + open sandbox testing, letting data determine where diagnostic agents genuinely earn their cost.

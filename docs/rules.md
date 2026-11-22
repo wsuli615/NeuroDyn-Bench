@@ -1,157 +1,124 @@
-# 评测规则、考纲与质量红线（Rules & Protocol）
+# Evaluation Rules, Exam Syllabus, and Quality Gates
 
-这份文档是 **NeuroDyn-Bench** 的“考试大纲 + 监考条例”。所有题目准入、预算记账、防作弊、评分计算和实验报告，均以本文件为唯一准绳。
+This document serves as the normative exam specification and QA rulebook for **NeuroDyn-Bench**. All task admission, budget accounting, anti-leakage controls, scoring formulas, and statistical reporting strictly follow these rules.
 
 ---
 
-## 1. 考纲设计（Exam Syllabus）
+## 1. Exam Syllabus
 
-考纲从一线计算神经科学家的调参决策与真实失败事故倒推，模型只是承载考点的载体。
+The syllabus is derived backwards from real decisions and failure modes encountered by computational neuroscientists during model calibration.
 
-### 1.1 四个能力模块（成绩单分项出分）
+### 1.1 Four Competency Modules (Reported Per-Module)
 
-| 模块 | 考核的核心能力 | 典型场景与困难 | 初版参考权重 |
+| Module | Core Capabilities Tested | Representative Challenges | Reference Weight |
 | --- | --- | --- | --- |
-| **M1. 任务设置（Setup）** | 解析参数语义与约束、筛选敏感参数、设定搜索范围与尺度、归一化多特征目标、按预算选优化器 | 真值在默认范围外；时间常数跨数量级却设线性尺度；混入冗余/迟钝参数；特征量纲严重失衡 | 30% |
-| **M2. 迭代调控（Iteration）** | 读懂残差与收敛趋势、处理发散/不可行相区、应对仿真随机性、动态分配剩余预算、判断何时停止 | 大片参数区导致网络沉默或失控发散；随机脉冲仿真单次方差极大；多因一果的歧义停滞；紧预算权衡 | 25% |
-| **M3. 过程诊断与敢停（Diagnosis & Abstention）** | 区分“设置问题”与“证据不足”、区分 3a（不可辨识）与 3b（结构不可达）、指出冲突特征、不把可解难题误判为无解 | 缺失关键机制（如适应电流、空间连接、短时程可塑性）导致硬性 trade-off；看起来极难但其实可达的 1:1 对照题 | 25% |
-| **M4. 结果可靠性（Reliability）** | 独立重复复现、留出数据与新条件/反事实泛化、识别参数退化与不确定性、提出下一步应补测的实验条件 | 训练条件过少导致拟合好但外推崩；多组差异巨大的参数拟合误差相同但反事实预测分叉 | 20% |
+| **M1. Task Setup** | Parse parameter semantics & dual bounds, screen sensitive dimensions, set ranges & log/linear scales, normalize multi-feature objectives, select optimizer | Ground truth outside default bounds; log-scale time constants set linearly; redundant/sloppy parameters; imbalanced feature scales | 30% |
+| **M2. Iterative Control** | Interpret residuals & convergence, handle divergent/silent regimes, manage stochasticity, allocate remaining budget, decide stopping | >70% infeasible phase volume; high trial-to-trial spiking noise; multi-cause ambiguous stalls; tight-budget trade-offs | 25% |
+| **M3. Process Diagnosis & Abstention** | Separate setup issues from insufficient evidence; distinguish `3a` (non-identifiable) from `3b` (structurally unreachable); avoid false abstention | Missing biophysical mechanism (spatial connectivity / adaptation) causing hard trade-offs paired 1:1 with solvable controls | 25% |
+| **M4. Result Reliability** | Fresh-seed replication, held-out & counterfactual generalization, degeneracy / uncertainty quantification, recommending next experiments | Under-constrained single-condition fits that collapse under novel stimulation or coupling perturbation | 20% |
 
-> **规则 1.1（分项成绩单）**：任何评测必须按 M1–M4 及 Type 1–3 分项报告得分，综合总分只作参考，防止用常规题高分掩盖“不敢停”或“爱误停”的致命短板。初版权重将在收集合作方真实案例后，按实际痛点频率校准。
+> **Rule 1.1 (Disaggregated Scoreboard)**: Every report must disaggregate scores across M1–M4 and Type 1 / Type 2 / Type 3a / Type 3b. Composite totals are secondary so strong Type 1 scores never mask poor abstention or over-abstention.
 
-### 1.2 明确不考的内容（Hard Scope Boundary）
+### 1.2 Hard Scope Exclusions
 
-- 不考从零推导或改写模型微分方程（属于 BMD / ModelSMC / unsatz 范畴）；
-- 不考主动选择新实验刺激去发现未知通道（属于 NeuronBench 范畴）；
-- 不考从零编写数值仿真器代码。
+- No synthesizing or editing simulator differential equations (`BMD` / `ModelSMC` / `unsatz`);
+- No active experimental design over new stimulation protocols (`NeuronBench`);
+- No writing numerical simulator engines from scratch.
 
-### 1.3 两种题目形态
+### 1.3 Two Task Formats
 
-- **交互大题（End-to-End Interactive Tasks，主评测）**：给出公开任务包与硬计算预算，被测方法多轮自主调用工具，最终提交参数或弃权报告，由独立评测器在隐藏条件上打分。
-- **诊断小题（Snapshot Decision Items，开发快测与过程剖析）**：从真实/基线调参日志中截取卡壳快照，要求选出下一步动作或诊断结论。标准答案不是靠人工拍脑袋，而是离线把每个候选动作在后续相同小预算下实际跑一遍，按与最优动作的效用差距自动判分。适合低成本快速迭代与定位 Agent 短板。
-
----
-
-## 2. 出题原则与准入红线（Benchmark QA Gates）
-
-每道题进入题库前，必须全部通过以下 **6 条红线**，否则不得入库：
-
-### 规则 2.1：反向过筛门槛（借鉴 Humanity's Last Exam）
-
-除少量用于 sanity check 的 Type 1 常规题外，所有 Type 2（可恢复困难）与 Type 3（证据不足）候选主考题，必须先用 **开箱优化器（默认配置 BO / CMA-ES）和通用前沿 Agent（G3）** 试跑：
-
-- 若默认优化器或无诊断通用 Agent 在预算内就能轻松高成功率通过（例如 >70% 种子通过），则降级为常规题或直接淘汰，不得留在主考硬题区；
-- 若 **神谕配置（Oracle）** 或人工验证的正确诊断链路也无法在预算内稳定通过（对 Type 1/2 而言），则说明题目超纲或标签有误，必须修正或淘汰。
-
-### 规则 2.2：单变量可归因与成对构造（受控考区 Level 1）
-
-- 受控诊断题默认遵循**一题一个主困境**，并为同一载体模型、同一真值生成 **“无陷阱基线版”与“有陷阱版”配对**，以便精确量化每个能力的净贡献。
-- 为专门检验 LLM 相对规则的价值，单设一类 **“多因一果歧义题”**，其组合困境必须在 `validation_cert.yaml` 中明确写出鉴别路径，保证存在可验证的解法。
-
-### 规则 2.3：强制离线标签校验（禁止拍脑袋贴标签）
-
-- **Type 1 & Type 2（可解）**：必须附带 `validation_cert.yaml`，证明神谕配置在规定预算内、多随机种子下通过独立验证（如通过率 ≥ 80%）。
-- **Type 3a（不可辨识 / 退化 / 表征不足）**：必须通过离线审计证明——存在至少两组在参数空间显著分离的解（或在可辨识性审计中存在显著迟钝/零特征值方向），它们在全部训练观测上均达标，但在参数值或隐藏反事实条件上显著分叉。
-- **Type 3b（固定结构下不可达）**：必须经过 **≥ 10× 任务预算** 的离线多算法全局搜索（如 CMA-ES + 多起点 BO），确认在合法生理边界内仍无法达到目标误差阈值，且存在可复现的特征冲突（trade-off）。
-- **1:1 对照配比**：每道 Type 3（该停）题目，题库中必须配一道表面现象高度相似、但经验证实际可解的 Type 2 对照题，杜绝“遇难就喊证据不足”的投机策略。
-
-### 规则 2.4：跨模型覆盖与锚题对齐
-
-- 考纲的每个核心考点（如边界越界、方差主导、参数补偿、3a、3b）至少在两个不同模型或尺度上出题，避免方法针对单一模型过拟合。
-- 题库保留 2–3 道与已发表工作（如 Neuroptimus 的 AdEx/HH、SNOPS 的 CBN/SBN 设定、FastDMF 公开示例）对齐的锚题，用于横向核对基线合理性。
-
-### 规则 2.5：防背题与防数据泄漏铁律
-
-- **参数真值随机化**：合成题真值一律在生理合理区间内随机采样，严禁直接使用教科书或论文默认参数（借鉴 TuneBench，防 LLM 记忆背题）。
-- **多档信息披露与盲化消融**：每类代表性任务支持三档信息（完整参数卡 / 仅名称与单位 / 参数名盲化为 `p0, p1, ...`），用于检验 Agent 是真正依赖领域物理语义推理，还是在做黑盒数值试错或背诵记忆。
-- **开发集与封闭测试集严格隔离**：
-  - `dev` 集用于开发方法、调优提示词、调试规则与确定超参数；
-  - `test` 集一旦冻结，所有提示词、规则阈值、诊断参数和代码锁定后统一跑封闭测试，严禁看过 `test` 失败轨迹后再回头调 prompt 或规则；
-  - 任何时候 `private/` 目录对被测方法完全不可见（通过进程/容器隔离保障）；
-  - v1.0 起建立滚动私有集机制，定期用新随机种子和合作方新案例替换部分公开考题。
-
-### 规则 2.6：合成数据必须具备真实粗糙度
-
-吸收 CtDB 对传统合成数据的批评，合成题不得使用零噪声、全状态可观测的理想数据，必须包含：试次间随机变异、部分观测（只给群体或电生理统计量而非全状态轨迹），以及合理的不可行/发散参数区。
+- **End-to-End Interactive Tasks (Primary Benchmark)**: Multi-round calibration under a hard simulation budget, ending in `submit_solution` or `abstain_insufficient_evidence`, scored by the isolated Evaluator.
+- **Snapshot Decision Items (Diagnostic Micro-Eval, Gate 1.5+)**: Frozen mid-run stall snapshots asking for the optimal next action; ground-truth action utilities are computed empirically offline by executing every candidate action for an identical small follow-up budget.
 
 ---
 
-## 3. 预算、成本与资源记账规则
+## 2. Six Benchmark Admission Gates (QA Red Lines)
 
-### 规则 3.1：全口径仿真预算（绝不“偷跑”）
+No task may enter the benchmark suite unless it passes all six rules:
 
-- 每道题在 `budget.yaml` 中设定硬计算预算 $B$（按有效仿真单位计，短仿真探针按实际步数比例折算，如 10 s 短仿真相对 100 s 完整仿真记为 $0.1$ 单位，借鉴 SNOPS 与 SimulCost）。
-- 所有以下开销一律计入同一预算 $B$：
-  - 正常优化迭代中的每次仿真；
-  - 重复仿真（跑 $R$ 次即计 $R$ 单位）；
-  - 敏感性分析、可达性探针、特征冲突检验、可辨识性局部扰动所消耗的仿真；
-  - 发散、超时或产生 NaN 的失败仿真。
-- 唯一不重复计费的是完全相同参数与随机种子组合的缓存命中。
-- 预算耗尽时，工具层立即拒绝新仿真调用，强制进入提交或弃权环节。
+### Rule 2.1: HLE-Style Reverse Screening
 
-### 规则 3.2：LLM 成本单列 + 单次仿真代价扫描
+Except for a small set of Type 1 sanity checks, every Type 2 and Type 3 candidate task must be screened against **default out-of-the-box optimizers (G1: BO / CMA-ES)** (and G3 general agents in Gate 2):
 
-- 单独记录并报告每道题的：LLM 调用次数、输入/输出 token 数、API 估算费用与总墙钟时间。
-- 借鉴 SimulCost，针对单次仿真较快的受控模型，必须额外报告 **“总成本 vs. 单次仿真耗时”敏感性曲线**（将单次仿真物理耗时从 0.1 s 扫描至 10 s、60 s、300 s），明确给出诊断 Agent 相对传统方法开始具有经济优势的临界仿真代价。
+- If default G1/G3 easily solves a Type 2 task (e.g., $>70\%$ seed pass rate), downgrade or reject it;
+- If the **Oracle** configuration fails to pass reliably within budget on a Type 1/2 task, fix or reject the task.
 
----
+### Rule 2.2: Single-Variable Attributability and Paired Controls (Level 1)
 
-## 4. 评分指标体系（防刷分设计）
+- Controlled Level 1 tasks isolate a primary failure mode and export a **same-ground-truth clean baseline (`*_clean`) paired with the trapped task**, directly measuring the net difficulty and net diagnostic recovery gain.
+- Dedicated **multi-cause ambiguous tasks** (e.g., T08) are included to test discrimination over simple threshold rules, with an explicit verifiable discrimination path recorded in `validation_cert.yaml`.
 
-### 4.1 主指标（Headline Metrics）
+### Rule 2.3: Mandatory Offline Label Certification (`validation_cert.yaml`)
 
-为彻底杜绝“从不停”和“乱停”两种刷分策略，主指标由三项并列核心指标构成，缺一不可：
+- **Type 1 & Type 2 (Solvable)**: Must certify offline that an Oracle configuration passes independent verification across multiple random seeds (pass rate $\ge 80\%$) within the task budget.
+- **Type 3a (Non-Identifiable / Degenerate / Representation Loss)**: Must certify offline that at least two well-separated parameter sets (or a low-rank Fisher / low-contraction posterior manifold) satisfy all public training observables while diverging substantially in parameter values and on hidden counterfactual conditions.
+- **Type 3b (Fixed-Structure Unreachable)**: Must certify offline via **$\ge 10\times$ task budget** multi-algorithm global search (CMA-ES + BO over full `phys_hard` bounds) that the target remains unreachable, with explicit documentation of conflicting observable pairs.
+- **1:1 Pairing Rule**: Every Type 3 (abstain) task is paired with a superficially similar, verified-solvable Type 2 control task to prevent "always abstain" gaming.
 
-1. **独立验证通过率（Verified Pass Rate，针对 Type 1 & Type 2 可解任务）**：
-   - 在固定预算 $B$ 内提交候选参数，且在独立评测器（新随机种子复现 + 留出数据 + 隐藏新条件/反事实测试）上同时满足预设验收阈值的任务比例。
-   - 统一特征达标标准（参考 Neuroptimus / eFEL 惯例，真实案例可由合作方微调）：所有目标特征标准化误差 $|z_k| = |f_k(\hat\theta) - f_k^{\text{target}}| / \sigma_k \le \tau$（默认 $\tau = 2.0$），且留出/新条件预测误差低于任务规定门槛。
-2. **科学诚实 / 弃权精确率与召回率（Abstention Precision / Recall / F1，针对 Type 2 vs Type 3 配对）**：
-   - **Recall（敢停）**：Type 3（3a + 3b）中正确触发 `abstain_insufficient_evidence`、亚型判断正确（区分 3a 与 3b）且附带有效工具证据的比例；
-   - **Precision（不乱停）**：所有触发停止的任务中，确实属于 Type 3 的比例（若把可解的 Type 2 误停，直接扣分）。
-3. **诊断净增益（Diagnostic Action Lift，直接回答 RQ1 & RQ2）**：
-   - **动作改变率**：诊断驱动 Agent（G4）在收到诊断信号后，与无诊断通用 Agent（G3）采取不同下一轮动作的比例；
-   - **有效改道增益**：因诊断触发流程调整后，最终独立验证通过率相对 G3 与 G2 的净提升。
+### Rule 2.4: Cross-Model Coverage and Published Anchors
 
-### 4.2 辅助与过程指标
+- Each core failure class (bounds, noise, sloppiness, 3a, 3b) spans at least two models or scales across v1.0.
+- Retain published anchor problems (SNOPS CBN/SBN, FastDMF HCP, Neuroptimus AdEx) to cross-check baseline sanity.
 
-- **效率曲线**：已通过独立验证的任务比例 vs. 消耗的仿真预算（Anytime Performance Curve）。
-- **参数恢复误差**：仅在已验证可辨识的参数方向（刚性方向）上报告，绝不对不可辨识/退化方向的参数偏差盲目惩罚。
-- **过程失败模式审计**（借鉴 HydroAgent 与 AgentHPOBench）：自动从 JSONL 轨迹统计四类失败频率：
-  - 过早停止（有剩余预算且误差明显可降却停止）；
-  - 越界/非法提案（提出违背生理硬边界或格式非法的配置）；
-  - 诊断-动作错位（文字诊断对了原因，但调用的动作指向无关参数或无关调整）；
-  - 长程退化（第 $k$ 轮之后连续多轮无改进甚至变差，记录拐点轮次）。
+### Rule 2.5: Anti-Memorization and Anti-Leakage Discipline
+
+- **Randomized ground truths**: Sample synthetic ground truths randomly inside valid physiological regions, strictly avoiding textbook/default values (`TuneBench` principle).
+- **Three-tier disclosure**: Support `full`, `names_only`, and `blinded` (`p0, p1, ...`) views to test genuine physical reasoning vs. memorization.
+- **Strict `dev` / `test` & `private/` isolation**: Lock prompts, rules, and thresholds on `dev` before running closed evaluation on `test`; `private/` is physically isolated from evaluated systems at all times.
+
+### Rule 2.6: Realistic Synthetic Roughness
+
+Following `CtDB`, synthetic tasks must never provide noiseless full-state trajectories—they must include stochastic trial-to-trial variability, partial summary observables, and realistic silent/divergent phase regions.
 
 ---
 
-## 5. 统计严谨性与人工成本口径
+## 3. Unified Budget and Cost Accounting
 
-### 规则 5.1：多随机种子与置信区间
+### Rule 3.1: All-Inclusive Simulation Budget
 
-- 鉴于已有研究（`arXiv:2610.22379`）证实相同 LLM prompt 跨随机种子可产生高达近 10 倍的结果波动，所有受控任务（Level 1）每个“方法 × 任务”组合至少跑 **10 个独立随机种子**，报告中位数、四分位距与 95% bootstrap 置信区间；
-- 昂贵重型任务（Level 2）至少跑 **5 个种子**并明确披露样本量与波动范围；
-- 重复运行仅用于估计结果波动，绝不计作“新增独立任务数”。
-- 所有 LLM 评测固定并公开模型版本、温度、最大推理预算与完整 system prompt。
+- Each task sets a hard ceiling $B$ in effective simulation units (`duration_scale = 1.0` for a full run; short probes billed proportionally, e.g. `0.2u` or `0.25u`).
+- **Everything counts**: optimization calls, repeated seeds ($R$ repeats = $R$ units), short feasibility scans, sensitivity screens, Bayesian ABC/Laplace/PPC probes, and failed/divergent/NaN runs.
+- Only exact `(simulator, params, condition, seed, duration_scale)` cache hits are exempt.
+- Reaching $B$ triggers hard refusal (`BudgetExhaustedError`).
 
-### 规则 5.2：人工介入评估口径（严守诚实边界）
+### Rule 3.2: Separate LLM Cost + Physical Cost-Sensitivity Scan
 
-- **代理评测（默认全覆盖）**：
-  - 基线对比采用固定公开的专家修正手册作为对照；
-  - 题库中约 10% 的题目刻意缺失一项只有领域专家掌握的外部约定（如单位口径、特征时间窗），设置受控 `ask_human` 考点：该问时问对主题才得分，信息已给全却乱问则扣分。
-- **真人专家评测（小规模校准）**：
-  - 条件允许时邀请领域专家在少量代表性任务上实测，记录主动操作时间与关键决策介入次数；
-  - **硬性承诺**：在未完成真人专家对照实验前，论文与报告不对“减少专家人工时间”作任何定量结论。
+- Report LLM call counts, input/output tokens, estimated API USD cost, and wall-clock time separately from simulation units.
+- Following `SimulCost`, sweep physical simulation duration across `[0.1, 1.0, 3.0, 10.0, 60.0, 300.0]` seconds to identify the break-even cost regime for LLM diagnostic overhead.
 
 ---
 
-## 6. 审计日志与可复现规范
+## 4. Anti-Gaming Scoring Metrics
 
-每次评测运行必须自动输出一份不可篡改的 `trace.jsonl`，逐轮记录：
+### 4.1 Three Co-Primary Headline Metrics
 
-- `round_id`、当前已用/剩余预算、LLM token 与耗时；
-- 工具返回的结构化诊断摘要；
-- 控制器提出的假设/判断（`hypothesis`）与采取的结构化动作（`action`）；
-- 下一轮结果是否支持原判断（`hypothesis_supported: true/false/inconclusive`）；
-- 最终提交与独立评测器的完整分项打分。
+1. **Verified Pass Rate (Type 1 & Type 2)**:
+   - Fraction of solvable tasks where submitted $\hat{\theta}$ passes **both** fresh-seed replication on public observables ($|z_k| = |f_k(\hat{\theta}) - f_k^{\text{target}}| / \sigma_k \le \tau$, default $\tau = 2.0$) **and** hidden held-out/counterfactual acceptance criteria within budget $B$.
+2. **Abstention Precision / Recall / F1 (Type 2 vs. Type 3 Paired)**:
+   - **Recall**: Fraction of Type 3 (`3a` + `3b`) tasks where the system correctly triggers `abstain_insufficient_evidence`, identifies the exact subtype (`3a` vs. `3b`), and cites valid tool-generated evidence recorded in `trace.jsonl`.
+   - **Precision**: Fraction of all abstentions that truly belong to Type 3 (false abstention on Type 2 directly penalizes precision).
+3. **Diagnostic Action Lift (RQ1 & RQ2)**:
+   - Action divergence rate between G4 (diagnostic) and G3 (no diagnostic protocol), plus net Verified Pass Rate and Abstention F1 gain over G3 and G2.
 
-任何无法从 `trace.jsonl` 与固定种子复现的结果，不得进入正式排行榜或论文表格。
+### 4.2 Secondary & Process Failure Metrics
+
+- **Anytime Efficiency Curve**: Verified Pass Rate vs. simulation units consumed.
+- **Parameter Recovery Error**: Reported **only** along certified stiff/identifiable directions, never on sloppy/degenerate directions.
+- **Automated Process Failure Audit** (from `trace.jsonl`):
+  1. Premature stopping;
+  2. Out-of-hard-bounds or malformed proposals;
+  3. Diagnosis-action misalignment;
+  4. Long-horizon degradation (plateau/regression onset round).
+
+---
+
+## 5. Statistical Rigor and Human-Cost Honesty
+
+- **Rule 5.1 (Multi-Seed Confidence Intervals)**: Run $\ge 10$ independent seeds per method x task on Level 1 ($\ge 5$ on heavy Level 2 tasks), reporting median, IQR, and 95% bootstrap CIs. Repeat runs estimate variance only and never count as additional tasks.
+- **Rule 5.2 (Human Intervention Boundaries)**: Use fixed rule baselines and structured `ask_human` gap items as reproducible proxies. **Never make quantitative claims about human expert time reduction** without actual controlled human expert timing logs.
+
+---
+
+## 6. Reproducible Audit Trail (`trace.jsonl`)
+
+Every run emits an immutable `trace.jsonl` recording `round_id`, `used_units`, `remaining_units`, `tool_name` / `action_type`, parameters, feasibility, wall-clock time, structured diagnostic summary, and final evaluator breakdown. Unreproducible results are excluded from official tables.

@@ -1,67 +1,63 @@
-# 神经科学领域合作方对接清单（Collaborator Brief）
+# Neuroscience Collaborator Alignment Brief
 
-> **致领域合作方**：这份简短清单用于正式进入系统编码前的快速对齐（Gate 0 前置）。我们希望先通过 30 分钟沟通敲定 **3 个关键问题**，并收集 **3–5 个真实建模卡壳案例**，确保 **NeuroDyn-Bench** 从第一天起就瞄准一线神经动力学研究的真实痛点，而不是拍脑袋造玩具题。
-
----
-
-## 一、我们在做什么（1 分钟对齐）
-
-- **不改你的模型方程，不做黑盒替代**：你的机理模型结构完全固定；我们构建的是一个**自动校准与过程诊断系统 + 标准化硬基准**，帮助模型在有限算力下调好参数。
-- **聚焦真实卡点**：当现有优化器（BO / CMA-ES / 数据同化）拟合不好或结果发飘时，系统像有经验的建模者一样运行便宜的鉴别检查（判断是搜索范围设窄、仿真噪声太大、积分步长不稳、参数互相补偿不可辨识，还是固定模型结构本身拟合不了），据此自动调整下一步流程，并在**数据确实定不出参数时及时预警并停止**，避免交出过拟合的假解。
+> **To our domain collaborators**: This short brief is designed for a 30-minute alignment before locking our first real-data capstone tasks (`T09`, `T15`). We aim to ground **NeuroDyn-Bench** directly in real calibration bottlenecks from active computational neuroscience labs rather than toy synthetic setups alone.
 
 ---
 
-## 二、开工前需要共同敲定的 3 个问题（对应 OQ-01 ~ OQ-03）
+## 1. Project Scope in One Minute
 
-1. **首个真实建模困难案例选哪一个？（OQ-01）**
-   - 我们目前准备了两个候选主环境：**Small E-I 脉冲网络（8–11 维，CBN/SBN 范式）** 与 **FastDMF 全脑神经质量模型（数十维，fMRI FC/FCD）**。
-   - 请结合课题组当前最痛、最现成的建模任务，拍板**哪一个作为主环境、哪一个作为第二环境**（或提供课题组正在使用的具体模型）。
-2. **模型代码、真实数据样例与预处理说明由谁交付、何时交付？（OQ-02）**
-   - 明确数据/代码对接人、脱敏与使用权限范围（是否仅放私有测试集 `private/` 不公开），以及预计交付日期。
-3. **共同验收标准是什么？（OQ-03）**
-   - 明确哪些观测统计量必须达标、容忍误差阈值（如 $|z_k| \le 2.0$ 或特定相关性门槛）、以及如何做独立验证（留出被试、留出刺激条件，还是反事实干预检验）。
+- **Your model structure stays untouched**: We do **not** replace mechanistic equations with black-box surrogates or let AI rewrite your ODEs/spiking equations.
+- **What we build and test**: An executable calibration & process-diagnosis benchmark plus diagnostic outer-loop workflows that detect *why* an optimizer stalled (bounds too narrow, high stochastic variance, coarse time step, parameter compensation / non-identifiability, or fixed-structure feature conflict), adapt the search strategy, and **stop honestly with auditable evidence** when the data cannot constrain the parameters.
 
 ---
 
-## 三、希望提供的三样最小启动材料
+## 2. Three Decisions Needed Up Front (OQ-01 ~ OQ-03)
 
-如果时间紧张，先给 **1 个真实案例** 即可开工，其余 2–4 个在先导期内陆续补充：
-
-1. **一个真实数据样例**：附数据物理含义、记录模态（单细胞/多电极阵列/LFP/fMRI/EEG）、采集条件、实验背景与特征提取/预处理脚本或说明；
-2. **一个具体建模需求或卡壳案例**：希望模型复现什么现象、目前卡在哪里；如果已有模型代码、历史拟合结果与人工排查记录，一并提供最理想；
-3. **参数边界与生物物理约束表**：哪些范围只是“之前随便设的经验值（可放宽）”，哪些是“绝不能违背的生理硬边界”。
+1. **First real modeling bottleneck (OQ-01)**: We have validated two candidate environments on our server—**Small E-I spiking networks (8–10D, CBN/SBN)** and **FastDMF whole-brain neural mass models (Schaefer-100 HCP, 8–100+D)**. Which matches your lab's most pressing calibration bottleneck right now (or should we integrate a specific lab model)?
+2. **Data, code, and preprocessing handoff (OQ-02)**: Who will provide the sample data, model code, and feature-extraction scripts, under what privacy/sharing terms (public `dev` vs. internal-only `private/` evaluation), and on what timeline?
+3. **Joint acceptance criteria (OQ-03)**: Which summary statistics must be matched, what error tolerances count as success, and what held-out subjects, stimuli, or interventions can serve as independent validation?
 
 ---
 
-## 四、真实建模案例收集模板（每例约 5 分钟填写）
+## 3. Minimal Starter Materials Requested
+
+Starting with **one** real case is enough to proceed; 2–4 additional cases can follow during the pilot:
+
+1. **One real data sample**: Recording modality (patch-clamp, multi-electrode array, LFP, EEG, fMRI), experimental condition, and preprocessing / summary-statistic script.
+2. **One concrete stalled calibration case**: Target phenomenon, what currently fails, existing model code, and any historical fitting attempts or debugging notes.
+3. **Biophysical dual bounds**: Distinguishing arbitrary initial search bounds (safely expandable) from strict physiological hard limits (must never be violated).
+
+---
+
+## 4. Real Modeling Case Intake Template (~5 Minutes per Case)
 
 ```markdown
-### 案例编号：CASE-01（标题）
+### Case ID: CASE-01 (<Short Title>)
 
-1. **模型与尺度**：
-   - 模型名称 / 仓库或脚本位置：
-   - 待校准参数（名称、单位、默认范围、生理硬边界）：
+1. Model & Scale:
+   - Model name / repo or script location:
+   - Free parameters (name, unit, default search range, physiological hard bounds):
 
-2. **数据与观测目标**：
-   - 数据来源与模态（是否可公开 / 仅限内部评测）：
-   - 希望匹配的统计量（及估计误差/试次间标准差）：
+2. Data & Target Observables:
+   - Modality & sharing tier (public / private-eval only):
+   - Target summary statistics (and empirical trial-to-trial SD or acceptable tolerance):
 
-3. **卡壳现象（当时发生了什么）**：
-   - 用了什么优化器/设置？跑了多久？
-   - 表面表现（如误差卡在高位、参数贴边界、不同运行结果飘忽、大批仿真发散）：
+3. Observed Calibration Bottleneck:
+   - Optimizer / budget used previously:
+   - Failure symptoms (high plateau, boundary saturation, run-to-run drift, runaway/silent runs):
 
-4. **人工排查过程与最终判断（极其宝贵！）**：
-   - 你们当时怀疑了哪几种原因？做了哪些检查？
-   - 最后发现真正原因是什么？（属于：可修好的流程问题 / 数据不足不可辨识 3a / 模型结构缺机制 3b）
-   - 如果是可修好的问题，改了哪一步才跑通？大约花了多少人工排查时间？
+4. Manual Debugging History & Verdict (Highest Value):
+   - What competing hypotheses did you test?
+   - Root cause (recoverable workflow issue / 3a underdetermined data / 3b missing mechanism)?
+   - If recovered, what change fixed it, and roughly how much human debugging time did it take?
 
-5. **验收标准**：
-   - 满足什么数值指标算成功？
-   - 有没有留出数据或未参与拟合的实验条件可用于独立检验？
+5. Acceptance & Independent Validation:
+   - Numeric pass thresholds:
+   - Available held-out subjects, stimuli, or intervention conditions:
 ```
 
 ---
 
-## 五、关于人工介入评估的可选配合（OQ-06）
+## 5. Optional Human Expert Timing Reference (OQ-06)
 
-如果课题组条件允许，在 Phase 0 后期我们会邀请 1–2 位建模同学在 **3–5 道代表性题目**上做一次轻量记录（仅记录主动操作耗时与关键介入次数），作为真实的专家参照基线；若近期人力紧张，本阶段将严格遵守诚实边界，仅报告自动化代理指标，不对“节省专家时间”作无依据的定量宣称。
+If lab bandwidth allows later in Phase 0, recording active decision time and intervention counts from 1–2 modelers on 3–5 representative tasks will provide a grounded human reference. Until such logs exist, all project reports strictly refrain from quantitative claims about human time savings (Rule 5.2 / ADR-009).
