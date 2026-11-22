@@ -1,0 +1,57 @@
+# NeuroDyn-Bench Unified Budget & Cost-Sensitivity Configuration (v0.1 draft)
+# Calibrated from empirical Gate 0 benchmarks on dgx2felis (256 CPU, 1 TiB RAM, 8x A100-40GB).
+# Resolves OQ-04. Maintained by: wsuli615
+
+hardware_reference:
+  host: dgx2felis
+  cpu_cores: 256
+  ram_tib: 1.0
+  gpus: "8x NVIDIA A100-SXM4-40GB"
+  blas_thread_policy: "OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 per worker"
+
+environments:
+  small_ei:
+    description: "1000-neuron LIF balanced network (800E/200I, dt=0.1ms, 10s eval + SNOPS 6 stats)"
+    unit_definition:
+      full_duration_ms: 10000.0
+      burn_in_ms: 500.0
+      sim_units: 1.0
+    short_probe:
+      duration_scale: 0.2
+      sim_units: 0.2
+    measured_dgx2felis:
+      single_core_full_median_s: 3.088
+      single_core_short_median_s: 0.804
+      throughput_32_workers_sims_per_s: 8.68
+    recommended_task_budgets_units:
+      type1_standard: 120.0
+      type2_recoverable: 200.0
+      type3_abstention: 200.0
+      offline_3b_cert_multiplier: 10.0  # >= 2000 units offline check (Rule 2.3)
+
+  fastdmf_schaefer100:
+    description: "100-ROI Schaefer HCP Dynamic Mean Field (canonical C++ core, 160s BOLD, TR=2s)"
+    unit_definition:
+      full_nb_steps: 160000
+      tr_s: 2.0
+      burn_in_trs: 15
+      c_scale: 0.2
+      sim_units: 1.0
+    short_probe:
+      duration_scale: 0.25
+      sim_units: 0.25
+    measured_dgx2felis:
+      single_core_full_median_s: 11.188
+      single_core_short_median_s: 2.813
+      throughput_32_workers_sims_per_s: 2.48
+    recommended_task_budgets_units:
+      type1_standard: 100.0
+      type2_recoverable: 160.0
+      type3_abstention: 160.0
+      offline_3b_cert_multiplier: 10.0  # >= 1600 units offline check (Rule 2.3)
+
+# Rule 3.2: SimulCost-style cost-sensitivity scan over physical simulator wall-clock costs
+cost_sensitivity_scan:
+  sim_cost_seconds_grid: [0.1, 1.0, 3.0, 10.0, 60.0, 300.0]
+  separate_llm_accounting: true
+  cache_exact_match_exempt: true

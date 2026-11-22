@@ -68,6 +68,7 @@ flowchart TD
 | [`docs/discussion_log.md`](docs/discussion_log.md) | 思路演进与决策记录（ADR）：前期全部讨论梳理、已定共识与开放问题 | 全员同步 |
 | [`docs/collaborator_brief.md`](docs/collaborator_brief.md) | 领域合作方对接清单：三个首要待定问题 + 真实建模案例收集模板 | 发给神经科学合作方 |
 | [`docs/primer_for_cs.md`](docs/primer_for_cs.md) | 神经动力学精准入门（CS 视角）：核心概念、三尺度模型、SNOPS/FastDMF 实例与术语表 | 计算机背景队友 |
+| [`docs/gate0_report.md`](docs/gate0_report.md) | Gate 0 双环境最小复现实证报告：`dgx2felis` 耗时、32 核并行吞吐、10 种子方差与 G1 基线标定（已解决 OQ-04） | 全员、工程与评测开发 |
 
 ---
 
