@@ -38,6 +38,7 @@ class EvaluationReport:
     false_abstention: bool = False
     false_confidence: bool = False
     hard_bound_violated_on_submit: bool = False
+    security_violated: bool = False
     public_z_scores: dict[str, float] = field(default_factory=dict)
     heldout_z_scores: dict[str, float] = field(default_factory=dict)
     used_units: float = 0.0
@@ -58,6 +59,7 @@ class EvaluationReport:
             "false_abstention": self.false_abstention,
             "false_confidence": self.false_confidence,
             "hard_bound_violated_on_submit": self.hard_bound_violated_on_submit,
+            "security_violated": self.security_violated,
             "public_z_scores": self.public_z_scores,
             "heldout_z_scores": self.heldout_z_scores,
             "used_units": round(self.used_units, 4),
@@ -72,12 +74,15 @@ def _audit_trace(trace_path: str | Path | None) -> dict[str, Any]:
             "trace_present": False,
             "n_evals": 0,
             "n_hard_bound_violations": 0,
+            "n_security_violations": 0,
+            "security_violations": [],
             "tools_used": [],
             "used_units": 0.0,
             "sim_wall_time_s": 0.0,
         }
     n_evals = 0
     n_hb = 0
+    sec_violations: list[dict[str, Any]] = []
     tools_used: set[str] = set()
     used_units = 0.0
     sim_wall = 0.0
@@ -97,10 +102,14 @@ def _audit_trace(trace_path: str | Path | None) -> dict[str, Any]:
             if tname:
                 tools_used.add(str(tname))
             used_units = max(used_units, float(rec.get("used_units", 0.0)))
+        elif ev == "security_violation":
+            sec_violations.append(rec.get("audit", rec))
     return {
         "trace_present": True,
         "n_evals": n_evals,
         "n_hard_bound_violations": n_hb,
+        "n_security_violations": len(sec_violations),
+        "security_violations": sec_violations,
         "tools_used": sorted(tools_used),
         "used_units": round(used_units, 4),
         "sim_wall_time_s": round(sim_wall, 4),
@@ -183,6 +192,22 @@ def evaluate_submission(
     audit = _audit_trace(trace_path)
     used_units = float(audit["used_units"])
     max_units = float(pub_real.budget.max_units)
+
+    # Hard invalidation on any security violation (forbidden path read or network escape)
+    if audit.get("n_security_violations", 0) > 0:
+        return EvaluationReport(
+            task_id=priv.task_id,
+            true_task_type=priv.task_type,
+            decision=sub.decision,
+            verified_pass=False,
+            public_pass=False,
+            heldout_pass=False,
+            abstention_correct=False if sub.decision == "abstain_insufficient_evidence" else None,
+            security_violated=True,
+            used_units=used_units,
+            max_units=max_units,
+            process_audit=audit,
+        )
 
     is_solvable = priv.task_type in ("type1_routine", "type2_recoverable")
     is_type3 = priv.task_type in ("type3a_non_identifiable", "type3b_structure_unreachable")

@@ -110,9 +110,14 @@ The benchmark never hardcodes one solver algorithm. Instead, AI systems discover
   - `feature_tradeoff_audit`: Checks whether subsets of observables are individually reachable while jointly conflicting (Type 3b signature).
   - `multistart_identifiability`: Compares distinct low-loss optima in parameter space and variance-normalized separation (Type 3a signature).
 
-### Track B: Open Python Sandbox (`src/neurodyn_bench/gateway/sandbox.py`)
+### Track B: Open Python Sandbox (`src/neurodyn_bench/gateway/sandbox.py` & `isolation.py`)
 
-Materializes an isolated run workspace containing only `public/` files, a lightweight `client.py` bound to `SimulatorGateway`, and explicit `submit_solution()` / `abstain_insufficient_evidence()` functions writing `final_submission.json`. Frontier coding agents may write arbitrary Python scripts using installed scientific packages (`numpy`, `scipy`, `cma`, `optuna`, `scikit-learn`, or the optional `neurodyn_bench.tools` helpers), while all simulations remain hard-capped and logged by `BudgetLedger`.
+Materializes an isolated run workspace containing only `public/` files, a lightweight `client.py` bound to `SimulatorGateway` over a Unix Domain Socket (`.gateway.sock`), and explicit `submit_solution()` / `abstain_insufficient_evidence()` functions writing `final_submission.json`. Frontier coding agents may write arbitrary Python scripts using installed scientific packages (`numpy`, `scipy`, `cma`, `optuna`, `scikit-learn`, or the optional `neurodyn_bench.tools` helpers), while all simulations remain hard-capped and logged by `BudgetLedger`.
+
+**Offline Network & Filesystem Isolation (`src/neurodyn_bench/gateway/isolation.py`)**:
+- **Rootless kernel `seccomp-bpf` offline filter (default on non-Docker Linux hosts like `dgx2felis`)**: Blocks `socket()`/`socketpair()` for all non-`AF_UNIX` domains (`AF_INET`, `AF_INET6`, etc.) with `EPERM` across the agent process and all child processes, while keeping `.gateway.sock` (`AF_UNIX`) functional; scrubs all API/token/SSH environment variables.
+- **OS-level `strace` syscall auditing**: Detects any unauthorized read/stat of `private/`, `ground_truth.yaml`, `heldout_*`, `validation_cert.yaml`, or task-builder scripts and records a `security_violation` event in `trace.jsonl`, which triggers **immediate invalidation (`verified_pass = False`)** in `evaluate_submission()`.
+- **Docker backend (`backend="docker"`)**: Ready for Docker-enabled hosts via `docker run --network none --read-only`.
 
 ---
 

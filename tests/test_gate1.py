@@ -15,8 +15,9 @@ from neurodyn_bench.eval.metrics import (
     compute_headline_metrics,
 )
 from neurodyn_bench.gateway.gateway import SimulatorGateway
+from neurodyn_bench.gateway.isolation import run_isolated_sandbox_command
 from neurodyn_bench.gateway.sandbox import TrackBSandboxServer
-from neurodyn_bench.tasks.loader import load_public_task
+from neurodyn_bench.tasks.loader import load_private_bundle, load_public_task
 from neurodyn_bench.tasks.schema import FinalSubmission
 from neurodyn_bench.tools.registry import ToolRegistry
 
@@ -203,3 +204,91 @@ def test_evaluator_anti_gaming_and_metrics(tmp_path: Path) -> None:
     scan = compute_cost_sensitivity_scan(used_units=100.0, llm_wall_time_s=20.0)
     assert len(scan) == 6
     assert scan[0]["llm_share"] > scan[-1]["llm_share"]
+
+
+def test_offline_seccomp_blocks_inet_but_allows_unix_gateway(tmp_path: Path) -> None:
+    t05 = DEV_TASKS / "T05_small_ei_high_variance"
+    trace_path = tmp_path / "offline_trace.jsonl"
+    gw = SimulatorGateway.from_task_dir(
+        t05, disclosure="full", trace_path=trace_path, max_units_override=3.0
+    )
+    ws_dir = tmp_path / "offline_ws"
+
+    with TrackBSandboxServer(gw, ws_dir) as srv:
+        probe_code = (
+            "import os, socket, subprocess, sys\n"
+            "from neurodyn_client import SandboxClient\n"
+            "# 1. Sensitive host env vars must be stripped\n"
+            "assert 'GITHUB_TOKEN' not in os.environ and 'OPENAI_API_KEY' not in os.environ\n"
+            "# 2. IPv4 and IPv6 sockets must be blocked at kernel level (EPERM)\n"
+            "for fam in (socket.AF_INET, socket.AF_INET6):\n"
+            "    blocked = False\n"
+            "    try:\n"
+            "        s = socket.socket(fam, socket.SOCK_STREAM)\n"
+            "        s.close()\n"
+            "    except PermissionError:\n"
+            "        blocked = True\n"
+            "    assert blocked, f'Expected {fam} to be blocked by seccomp-bpf'\n"
+            "# 3. Nested child subprocess must inherit seccomp-bpf filter\n"
+            "child = subprocess.run(\n"
+            "    [sys.executable, '-c', 'import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM)'],\n"
+            "    capture_output=True, text=True,\n"
+            ")\n"
+            "assert child.returncode != 0 and 'PermissionError' in child.stderr\n"
+            "# 4. AF_UNIX gateway proxy must still work normally\n"
+            "c = SandboxClient()\n"
+            "info = c.task_info()\n"
+            "nom = {p['name']: p['nominal'] for p in info['parameters']}\n"
+            "r = c.evaluate(nom, seed=1, duration_scale=1.0)\n"
+            "assert r['used_units'] == 1.0\n"
+            "c.submit_solution(nom, notes='offline seccomp test')\n"
+        )
+        audit = run_isolated_sandbox_command(
+            srv,
+            [sys.executable, "-c", probe_code],
+            timeout_s=60.0,
+            backend="seccomp",
+            enable_strace_audit=True,
+        )
+        assert audit.returncode == 0, f"Offline sandbox failed:\nSTDOUT:{audit.stdout}\nSTDERR:{audit.stderr}"
+        assert audit.seccomp_active is True
+        assert audit.network_escapes_succeeded == []
+        assert audit.path_violations == []
+        assert audit.security_violated is False
+
+
+def test_strace_catches_private_peek_and_evaluator_invalidates(tmp_path: Path) -> None:
+    t02 = DEV_TASKS / "T02_small_ei_routine"
+    priv = load_private_bundle(t02)
+    gt_file = (t02 / "private" / "ground_truth.yaml").resolve()
+    trace_path = tmp_path / "cheat_trace.jsonl"
+    gw = SimulatorGateway.from_task_dir(
+        t02, disclosure="full", trace_path=trace_path, max_units_override=5.0
+    )
+    ws_dir = tmp_path / "cheat_ws"
+
+    with TrackBSandboxServer(gw, ws_dir) as srv:
+        # Simulate a cheating agent that peeks at private/ground_truth.yaml and submits exact GT
+        cheat_code = (
+            "from pathlib import Path\n"
+            "from neurodyn_client import SandboxClient\n"
+            f"_ = Path({str(gt_file)!r}).read_text()\n"
+            f"SandboxClient().submit_solution({priv.ground_truth_params!r}, notes='cheated')\n"
+        )
+        audit = run_isolated_sandbox_command(
+            srv,
+            [sys.executable, "-c", cheat_code],
+            timeout_s=60.0,
+            backend="seccomp",
+            enable_strace_audit=True,
+        )
+        assert audit.returncode == 0
+        assert audit.strace_active is True
+        assert audit.security_violated is True
+        assert any("ground_truth.yaml" in p for p in audit.path_violations)
+
+        # Even though submitted theta_hat is exact ground truth, Evaluator MUST invalidate the run
+        rep = evaluate_submission(t02, srv.submission_path, trace_path=trace_path)
+        assert rep.verified_pass is False
+        assert rep.security_violated is True
+        assert rep.process_audit["n_security_violations"] >= 1
