@@ -70,6 +70,7 @@ Both environments are implemented, unit-tested, and empirically profiled on `dgx
 | [`docs/collaborator_brief.md`](docs/collaborator_brief.md) | Alignment checklist and real-case intake template for neuroscience collaborators | Domain collaborators |
 | [`docs/primer_for_cs.md`](docs/primer_for_cs.md) | Concise neural dynamics primer for CS/AI contributors (models, ill-posedness, glossary) | CS / AI engineers |
 | [`docs/gate0_report.md`](docs/gate0_report.md) | Gate 0 empirical profiling on `dgx2felis`: timings, 32-core scaling, variance, and G1 baseline | Engineering & benchmark devs |
+| [`docs/gate1_cert_report.md`](docs/gate1_cert_report.md) | Gate 1 certification report: dual-track harness, 8/8 certified tasks, 3a/3b proofs, and G1/G2 screening | All contributors & paper |
 
 ---
 

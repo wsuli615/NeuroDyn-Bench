@@ -1,0 +1,14 @@
+task_id: T05_small_ei_high_variance
+title: Small E-I High Stochastic Variance Calibration
+split: test
+model_type: small_ei
+syllabus_module: M2
+prompt: Calibrate the 4 active intrinsic synaptic parameters (J_ee, J_ie, g_ei, tau_i)
+  of a stochastic CBN spiking network. Single-trial evaluations exhibit substantial
+  seed-to-seed variance; ensure submitted parameters generalize across fresh random
+  seeds.
+paired_with: T05_small_ei_high_variance_clean
+is_clean_control: false
+disclosure: full
+authors:
+- wsuli615

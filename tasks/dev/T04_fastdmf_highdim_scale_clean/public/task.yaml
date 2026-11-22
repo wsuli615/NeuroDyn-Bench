@@ -1,0 +1,14 @@
+task_id: T04_fastdmf_highdim_scale_clean
+title: FastDMF 16D Whole-Brain Scale & Sloppy-Subspace Calibration (Clean Control)
+split: dev
+model_type: fastdmf
+syllabus_module: M1
+prompt: Calibrate a 100-ROI Schaefer whole-brain Dynamic Mean Field (FastDMF) model
+  with 16 exposed global and regional parameters to match resting-state firing rates,
+  BOLD amplitude, static FC, and FCD within a tight 140-unit simulation budget. Screen
+  out sloppy/insensitive dimensions and choose appropriate parameter scales.
+paired_with: T04_fastdmf_highdim_scale
+is_clean_control: true
+disclosure: full
+authors:
+- wsuli615

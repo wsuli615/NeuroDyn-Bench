@@ -30,6 +30,7 @@ runs/
 *.hdf5
 *.npz
 *.npy
+!tasks/**/public/*.npy
 *.pkl
 *.parquet
 

@@ -1,0 +1,8 @@
+obs_id	condition_id	target_mean	target_sd	weight	tolerance_tau
+mean_rate_hz	baseline	1.08941	0.1	1.0	2.2
+max_rate_hz	baseline	1.99554	0.2	1.0	2.2
+bold_std_mean	baseline	0.00053	0.00012	1.0	2.2
+fc_mean	baseline	0.07323	0.02	1.0	2.2
+fc_std	baseline	0.16082	0.012	1.0	2.2
+fc_corr	baseline	0.57485	0.05	1.0	2.2
+fcd_ks	baseline	0.1065	0.06	1.0	2.2

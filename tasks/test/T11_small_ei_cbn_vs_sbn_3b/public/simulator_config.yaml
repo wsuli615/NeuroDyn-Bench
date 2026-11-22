@@ -1,0 +1,7 @@
+model_type: small_ei
+kwargs:
+  topology: cbn
+  duration_ms: 10000.0
+  spatial_input_strength: 0.0
+target_fc_file: null
+target_fcd_file: null

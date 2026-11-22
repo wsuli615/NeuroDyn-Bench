@@ -1,0 +1,15 @@
+task_id: T14_fastdmf_fc_compression_3a
+title: FastDMF Whole-Brain Parameter Recovery from Static FC Summary Only
+split: test
+model_type: fastdmf
+syllabus_module: M3/M4
+prompt: Infer the 5 coupled biophysical parameters (G, w, JN, sigma, fic_alpha) of
+  a 100-ROI FastDMF model from static resting-state FC summary statistics alone so
+  that the recovered biophysical parameters generalize under global-coupling perturbations.
+  If static FC compression leaves parameters degenerate/non-identifiable, abstain
+  as 3a_non_identifiable with quantitative posterior/Fisher/multi-start evidence.
+paired_with: T04_fastdmf_highdim_scale
+is_clean_control: false
+disclosure: full
+authors:
+- wsuli615

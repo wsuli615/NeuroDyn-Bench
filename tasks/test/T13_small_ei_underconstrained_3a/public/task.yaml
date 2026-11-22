@@ -1,0 +1,16 @@
+task_id: T13_small_ei_underconstrained_3a
+title: Small E-I Single-Condition Inverse Parameter Identification
+split: test
+model_type: small_ei
+syllabus_module: M3/M4
+prompt: Infer the 4 active synaptic and external-drive parameters (J_ee, g_ei, tau_i,
+  nu_ext_e) of a fixed CBN network from the provided single-condition summary observations
+  so that the calibrated model reliably predicts unseen perturbation conditions. If
+  multiple disparate parameter sets fit equally well and parameters cannot be uniquely
+  identified, abstain as 3a_non_identifiable with quantitative uncertainty/degeneracy
+  evidence.
+paired_with: T02_small_ei_routine
+is_clean_control: false
+disclosure: full
+authors:
+- wsuli615

@@ -1,0 +1,6 @@
+model_type: small_ei
+kwargs:
+  topology: cbn
+  duration_ms: 1200.0
+target_fc_file: null
+target_fcd_file: null

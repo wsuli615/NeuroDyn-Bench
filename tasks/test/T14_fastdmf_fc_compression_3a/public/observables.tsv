@@ -1,0 +1,4 @@
+obs_id	condition_id	target_mean	target_sd	weight	tolerance_tau
+fc_mean	baseline	0.09097	0.02	1.0	2.0
+fc_std	baseline	0.15504	0.012	1.0	2.0
+fc_corr	baseline	0.52962	0.05	1.0	2.0

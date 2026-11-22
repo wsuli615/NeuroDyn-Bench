@@ -1,0 +1,13 @@
+task_id: T03_small_ei_bound_semantics_clean
+title: Small E-I Dual-Bound Semantics Calibration (Clean Control)
+split: dev
+model_type: small_ei
+syllabus_module: M1
+prompt: Calibrate the 4 active parameters of a fixed CBN spiking network to match
+  baseline observables. Initial default bounds reflect legacy guesses and may be expanded
+  only within the biophysical hard bounds (phys_hard_lb, phys_hard_ub).
+paired_with: T03_small_ei_bound_semantics
+is_clean_control: true
+disclosure: full
+authors:
+- wsuli615

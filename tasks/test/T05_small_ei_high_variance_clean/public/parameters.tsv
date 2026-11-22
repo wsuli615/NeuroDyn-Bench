@@ -1,0 +1,11 @@
+name	unit	default_lb	default_ub	phys_hard_lb	phys_hard_ub	scale	nominal	active	description
+J_ee	mV	0.3	2.5	0.05	8.0	linear	1.2	True	E->E synaptic weight
+J_ie	mV	0.3	3.0	0.05	8.0	linear	1.5	True	E->I synaptic weight
+g_ei	ratio	2.0	8.0	0.5	20.0	linear	5.0	True	Relative I->E inhibition (J_ei / J_ee)
+g_ii	ratio	2.0	8.0	0.5	20.0	linear	4.5	False	Relative I->I inhibition (J_ii / J_ie)
+tau_e	ms	2.0	12.0	0.5	50.0	log	5.0	False	Excitatory AMPA synaptic decay constant
+tau_i	ms	4.0	20.0	1.0	80.0	log	8.0	True	Inhibitory GABA_A synaptic decay constant
+tau_m_e	ms	10.0	30.0	5.0	60.0	linear	20.0	False	Excitatory membrane time constant
+tau_m_i	ms	6.0	20.0	3.0	50.0	linear	10.0	False	Inhibitory membrane time constant
+nu_ext_e	kHz	2.5	8.0	0.5	25.0	linear	5.9	False	External Poisson rate to E neurons
+nu_ext_i	kHz	2.0	8.0	0.5	25.0	linear	4.5	False	External Poisson rate to I neurons

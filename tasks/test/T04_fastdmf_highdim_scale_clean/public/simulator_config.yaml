@@ -1,0 +1,7 @@
+model_type: fastdmf
+kwargs:
+  n_hetero_groups: 8
+  nb_steps: 160000
+  c_scale: 0.2
+target_fc_file: target_fc.npy
+target_fcd_file: target_fcd_triu.npy

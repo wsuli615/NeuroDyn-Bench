@@ -1,0 +1,6 @@
+obs_id	condition_id	target_mean	target_sd	weight	tolerance_tau
+fr_e	baseline	12.75375	0.51015	1.0	2.0
+ff	baseline	1.1076	0.0443	1.0	2.0
+rsc	baseline	0.02455	0.00682	1.0	2.0
+pct_sh	baseline	51.31793	2.05272	1.0	2.0
+dsh	baseline	4.0	0.4	1.0	2.0

@@ -159,6 +159,9 @@ def _simulate_lif_ei(
     sample_idx: np.ndarray,
     bin_steps: int,
     pop_bin_steps: int,
+    mode_loadings: np.ndarray,
+    spatial_input_strength: float,
+    spatial_mode_tau_ms: float,
     seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool]:
     """Run current-based LIF E-I spiking simulation with delayed exponential synapses.
@@ -221,9 +224,19 @@ def _simulate_lif_ei(
     window_spikes = 0
     check_interval = max(1, int(round(100.0 / dt)))  # noqa: RUF046  # Numba round() returns float
 
+    n_modes = mode_loadings.shape[1]
+    use_spatial_drive = n_modes > 0 and spatial_input_strength > 0.0
+    z_modes = np.zeros(max(n_modes, 1), dtype=np.float64)
+    ou_decay = math.exp(-dt / max(spatial_mode_tau_ms, dt))
+    ou_sigma = math.sqrt(max(1.0 - ou_decay * ou_decay, 0.0))
+
     for step in range(n_steps):
         cur_slot = step % ring_len
         deliv_slot = (step + delay_steps) % ring_len
+
+        if use_spatial_drive:
+            for m in range(n_modes):
+                z_modes[m] = ou_decay * z_modes[m] + ou_sigma * np.random.normal(0.0, 1.0)
 
         # 1. Decay synapses & apply delayed recurrent arrivals + external Poisson input
         for i in range(n_total):
@@ -253,8 +266,13 @@ def _simulate_lif_ei(
                 ref_cnt[i] -= 1
                 v[i] = v_reset
             else:
+                shared_drive = 0.0
+                if use_spatial_drive:
+                    for m in range(n_modes):
+                        shared_drive += mode_loadings[i, m] * z_modes[m]
+                    shared_drive *= spatial_input_strength
                 dt_tm = dt_over_tm_e if i < n_e else dt_over_tm_i
-                v_new = v[i] + dt_tm * (-(v[i] - e_l) + ie_val - ii_val)
+                v_new = v[i] + dt_tm * (-(v[i] - e_l) + ie_val - ii_val + shared_drive)
                 if not math.isfinite(v_new):
                     aborted_runaway = True
                     return (
@@ -469,6 +487,10 @@ class SmallEINetworkSimulator(BaseSimulator):
         n_sample: int = 50,
         bin_ms: float = 100.0,
         conn_seed: int = 42,
+        spatial_input_strength: float = 0.0,
+        n_spatial_modes: int = 4,
+        spatial_mode_tau_ms: float = 80.0,
+        spatial_mode_sigma: float = 0.22,
     ) -> None:
         self.name = f"small_ei_{topology}"
         self.n_e = n_e
@@ -486,6 +508,10 @@ class SmallEINetworkSimulator(BaseSimulator):
         self.n_sample = min(n_sample, n_e)
         self.bin_ms = bin_ms
         self.conn_seed = conn_seed
+        self.spatial_input_strength = float(spatial_input_strength)
+        self.n_spatial_modes = int(n_spatial_modes)
+        self.spatial_mode_tau_ms = float(spatial_mode_tau_ms)
+        self.spatial_mode_sigma = float(spatial_mode_sigma)
 
         if topology == "cbn":
             self._indptr, self._indices = _build_cbn_csr(n_e, n_i, p_conn, conn_seed)
@@ -495,6 +521,31 @@ class SmallEINetworkSimulator(BaseSimulator):
             )
         else:
             raise ValueError(f"Unknown topology: {topology}")
+
+        n_total = n_e + n_i
+        if self.spatial_input_strength > 0.0 and self.n_spatial_modes > 0:
+            rng_sp = np.random.default_rng(conn_seed + 2000)
+            pos_x = rng_sp.random(n_total)
+            pos_y = rng_sp.random(n_total)
+            # Place mode centers uniformly on [0, 1)^2 grid / random sheet
+            grid_side = max(1, math.ceil(math.sqrt(self.n_spatial_modes)))
+            centers = []
+            for m in range(self.n_spatial_modes):
+                cx = ((m % grid_side) + 0.5) / grid_side
+                cy = ((m // grid_side) + 0.5) / grid_side
+                centers.append((cx, cy))
+            loadings = np.zeros((n_total, self.n_spatial_modes), dtype=np.float64)
+            inv_2s2 = 0.5 / (self.spatial_mode_sigma**2)
+            for m, (cx, cy) in enumerate(centers):
+                dx = np.abs(pos_x - cx)
+                dx = np.minimum(dx, 1.0 - dx)
+                dy = np.abs(pos_y - cy)
+                dy = np.minimum(dy, 1.0 - dy)
+                loadings[:, m] = np.exp(-(dx * dx + dy * dy) * inv_2s2)
+            norms = np.linalg.norm(loadings, axis=1, keepdims=True)
+            self._mode_loadings = np.ascontiguousarray(loadings / np.maximum(norms, 1e-12))
+        else:
+            self._mode_loadings = np.zeros((n_total, 0), dtype=np.float64)
 
         rng = np.random.default_rng(conn_seed + 1000)
         self._sample_idx = np.sort(rng.choice(n_e, size=self.n_sample, replace=False)).astype(
@@ -613,6 +664,9 @@ class SmallEINetworkSimulator(BaseSimulator):
             self._sample_idx,
             bin_steps,
             pop_bin_steps,
+            self._mode_loadings,
+            self.spatial_input_strength,
+            self.spatial_mode_tau_ms,
             int(seed),
         )
 

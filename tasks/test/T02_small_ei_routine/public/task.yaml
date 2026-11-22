@@ -1,0 +1,14 @@
+task_id: T02_small_ei_routine
+title: Small E-I Routine Balanced-Regime Calibration
+split: test
+model_type: small_ei
+syllabus_module: M1/M2
+prompt: Calibrate the 4 active intrinsic synaptic parameters (J_ee, J_ie, g_ei, tau_i)
+  of a fixed 1,000-neuron Classical Balanced Network (CBN) under known external drive
+  to match baseline population statistics within budget. Verify reproducibility before
+  submitting.
+paired_with: null
+is_clean_control: false
+disclosure: full
+authors:
+- wsuli615

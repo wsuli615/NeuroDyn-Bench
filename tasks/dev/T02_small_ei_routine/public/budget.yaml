@@ -1,0 +1,10 @@
+max_units: 120.0
+short_probe_scale: 0.2
+default_n_repeats: 1
+sim_cost_seconds_grid:
+- 0.1
+- 1.0
+- 3.0
+- 10.0
+- 60.0
+- 300.0
