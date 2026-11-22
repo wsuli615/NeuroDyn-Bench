@@ -286,8 +286,15 @@ def feature_tradeoff_audit(
 ) -> dict[str, Any]:
     """Audit recorded evaluations for irreconcilable per-observable trade-offs (Type 3b signal)."""
     obs_rows = [o for o in gateway.bundle.observables if o.condition_id == "baseline"]
+    obs_ids = [o.obs_id for o in obs_rows]
     feas_recs = [
-        r for r in gateway.history if r.feasible and r.condition_id == "baseline" and r.z_scores
+        r
+        for r in gateway.history
+        if r.feasible
+        and r.condition_id == "baseline"
+        and r.duration_scale >= 0.99
+        and math.isfinite(r.rms_z)
+        and all(k in r.z_scores and math.isfinite(r.z_scores[k]) for k in obs_ids)
     ]
     if len(feas_recs) < 4:
         summary = {
@@ -297,7 +304,6 @@ def feature_tradeoff_audit(
         gateway.record_tool_event("feature_tradeoff_audit", summary, hypothesis=hypothesis)
         return summary
 
-    obs_ids = [o.obs_id for o in obs_rows]
     z_mat = np.array([[abs(r.z_scores[k]) for k in obs_ids] for r in feas_recs], dtype=np.float64)
     min_per_obs = {obs_ids[j]: round(float(np.min(z_mat[:, j])), 3) for j in range(len(obs_ids))}
     best_joint_idx = int(np.argmin(np.max(z_mat, axis=1)))
@@ -354,7 +360,10 @@ def multistart_identifiability(
     good = [
         r
         for r in gateway.history
-        if r.feasible and r.condition_id == "baseline" and r.rms_z <= rms_z_threshold
+        if r.feasible
+        and r.condition_id == "baseline"
+        and r.duration_scale >= 0.99
+        and r.rms_z <= rms_z_threshold
     ]
     if len(good) < 2:
         summary = {

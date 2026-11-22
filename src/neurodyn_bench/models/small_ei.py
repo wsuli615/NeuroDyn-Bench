@@ -734,8 +734,14 @@ class SmallEINetworkSimulator(BaseSimulator):
             "pop_psd_peak_hz": pop_psd_peak_hz,
         }
 
-        feasible = all(math.isfinite(obs[k]) for k in ("fr_e", "ff", "rsc", "pct_sh", "dsh"))
-        failure_reason = None if feasible else "insufficient_active_neurons"
+        if float(duration_scale) < 0.5:
+            # Short feasibility probe (SNOPS Signal 1): checks active non-runaway regime
+            # even when eval_ms is too short for 10+ Factor Analysis windows.
+            feasible = bool(math.isfinite(obs["fr_e"]) and 0.5 <= fr_e_pop <= 150.0)
+            failure_reason = None if feasible else "short_probe_infeasible"
+        else:
+            feasible = all(math.isfinite(obs[k]) for k in ("fr_e", "ff", "rsc", "pct_sh", "dsh"))
+            failure_reason = None if feasible else "insufficient_active_neurons"
 
         return SimulationResult(
             observables=obs,

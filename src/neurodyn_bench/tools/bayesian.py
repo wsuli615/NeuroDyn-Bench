@@ -57,7 +57,12 @@ def run_abc_smc(
     # Optionally seed from already-billed feasible history points (0 extra sim cost)
     if reuse_history:
         for rec in gateway.history:
-            if rec.feasible and rec.condition_id == "baseline" and math.isfinite(rec.rms_z):
+            if (
+                rec.feasible
+                and rec.condition_id == "baseline"
+                and rec.duration_scale >= 0.99
+                and math.isfinite(rec.rms_z)
+            ):
                 u = params_to_unit(rec.params, rows, eff_bounds, eff_scales)
                 particles_u.append(u)
                 particles_loss.append(float(rec.rms_z))

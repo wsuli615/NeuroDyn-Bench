@@ -377,11 +377,14 @@ class SimulatorGateway:
         self._append_trace(entry)
 
     def best_feasible_record(self, condition_id: str = "baseline") -> EvalRecord | None:
-        """Return the lowest-rms_z feasible evaluation seen so far."""
+        """Return the lowest-rms_z full-horizon feasible evaluation seen so far."""
         cands = [
             r
             for r in self.history
-            if r.feasible and r.condition_id == condition_id and math.isfinite(r.rms_z)
+            if r.feasible
+            and r.condition_id == condition_id
+            and r.duration_scale >= 0.99
+            and math.isfinite(r.rms_z)
         ]
         if not cands:
             return None
